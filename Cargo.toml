@@ -1,0 +1,9 @@
+[package]
+name = "tender"
+version = "0.0.1"
+authors = ["David Li <davidli2010@foxmail.com>"]
+edition = "2018"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+description = "Raft based election algorithm"
+keywords = ["raft", "election"]
