@@ -1,9 +1,22 @@
 [package]
 name = "tender"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["David Li <davidli2010@foxmail.com>"]
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-description = "Raft based election algorithm"
+description = "Raft-based election framework"
 keywords = ["raft", "election"]
+repository = "https://github.com/cod-technologies/tender.git"
+homepage = "https://github.com/cod-technologies/tender"
+documentation = "https://docs.rs/tender/"
+
+[dependencies]
+log = "0.4.14"
+thiserror = "1.0.30"
+fastrand = "1.5.0"
+crossbeam-channel = "0.5.1"
+watch = { version = "0.2.0", features = ["parking_lot"] }
+
+[dev-dependencies]
+env_logger = "0.9.0"

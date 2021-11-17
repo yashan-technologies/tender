@@ -4,11 +4,11 @@
 OR
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
-Raft based election algorithm.
+Raft-based election algorithm.
 
 ## Rust Version
 
-This version of `tender` requires Rust 1.51 or later.
+This version of `tender` requires Rust 1.56 or later.
 
 ## License
 
@@ -25,3 +25,7 @@ except according to those terms.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in `tender` by you, shall be licensed as Apache-2.0 and MIT, without any additional
 terms or conditions.
+
+## Acknowledgment
+
+`tender` is inspired by [`async-raft`](https://crates.io/crates/async-raft).
