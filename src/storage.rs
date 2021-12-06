@@ -14,5 +14,5 @@ pub struct HardState<T: RaftType> {
 pub trait Storage<T: RaftType> {
     fn load_hard_state(&self) -> Result<HardState<T>>;
     fn save_hard_state(&self, hard_state: &HardState<T>) -> Result<()>;
-    fn get_vote_factor(&self) -> Result<T::VoteFactor>;
+    fn load_vote_factor(&self) -> Result<T::VoteFactor>;
 }

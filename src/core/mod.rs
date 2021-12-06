@@ -359,7 +359,7 @@ impl<T: RaftType> RaftCore<T> {
 
         // Check if candidate's vote factor can be granted.
         // If candidate's vote factor is not granted, then reject.
-        let current_vote_factor = self.storage.get_vote_factor()?;
+        let current_vote_factor = self.storage.load_vote_factor()?;
         let candidate_is_granted = current_vote_factor.vote(&msg.factor);
         if !candidate_is_granted {
             debug!(

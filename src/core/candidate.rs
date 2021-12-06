@@ -142,7 +142,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
     }
 
     fn spawn_parallel_vote_request(&mut self) {
-        let vote_factor = match self.core.storage.get_vote_factor() {
+        let vote_factor = match self.core.storage.load_vote_factor() {
             Ok(factor) => factor,
             Err(e) => {
                 warn!("[Node({})] failed to get vote factor: {}", self.core.node_id, e);

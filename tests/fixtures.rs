@@ -98,7 +98,7 @@ impl<T: RaftType> Storage<T> for MemStore<T> {
         Ok(())
     }
 
-    fn get_vote_factor(&self) -> Result<T::VoteFactor> {
+    fn load_vote_factor(&self) -> Result<T::VoteFactor> {
         Ok(self.vote_factor.clone())
     }
 }
