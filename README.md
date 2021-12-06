@@ -4,7 +4,7 @@
 OR
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 
-Raft-based election algorithm.
+A Raft-based election framework.
 
 ## Rust Version
 
