@@ -71,10 +71,17 @@ impl<'a, T: RaftType> Startup<'a, T> {
 
             match self.core.msg_rx.recv_deadline(election_timeout) {
                 Ok(msg) => {
-                    if let Message::Initialize { members, tx } = msg {
-                        let _ = tx.send(self.init_with_members(members));
-                    } else {
-                        // ignore other messages in startup state
+                    match msg {
+                        Message::Initialize { members, tx } => {
+                            let _ = tx.send(self.init_with_members(members));
+                        }
+                        Message::Shutdown => {
+                            info!("[Node({})] raft received shutdown message", self.core.node_id);
+                            self.core.state = State::Shutdown;
+                        }
+                        _ => {
+                            // ignore other messages in startup state
+                        }
                     }
                 }
                 Err(e) => match e {
