@@ -45,7 +45,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
         false
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(mut self) {
         if self.pre_vote {
             assert_eq!(self.core.state, State::PreCandidate);
             self.core.notify_event(Event::TransitToPreCandidate);
@@ -60,7 +60,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
 
         loop {
             if !self.is_specified_candidate() {
-                return Ok(());
+                return;
             }
 
             self.votes_needed_old = self.core.members.members.len() / 2 + 1;
@@ -72,10 +72,17 @@ impl<'a, T: RaftType> Candidate<'a, T> {
 
             self.core.update_next_election_timeout(false);
             if !self.pre_vote {
+                self.core.current_leader = None;
                 self.core.hard_state.current_term += 1;
                 self.core.hard_state.voted_for = Some(self.core.node_id.clone());
-                self.core.current_leader = None;
-                self.core.save_hard_state()?;
+                if let Err(e) = self.core.storage.save_hard_state(&self.core.hard_state) {
+                    error!(
+                        "[Node({})] raft is shutting down caused by fatal storage error: {}",
+                        self.core.node_id, e
+                    );
+                    self.core.state = State::Shutdown;
+                    return;
+                }
                 self.core.report_metrics();
             }
 
@@ -83,7 +90,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
 
             loop {
                 if !self.is_specified_candidate() {
-                    return Ok(());
+                    return;
                 }
 
                 let election_timeout = self.core.next_election_timeout();
@@ -219,10 +226,9 @@ impl<'a, T: RaftType> Candidate<'a, T> {
 
         // If peer's term is greater than current term, revert to follower state.
         if msg.term > self.core.hard_state.current_term {
-            self.core.update_current_term(msg.term, None);
+            self.core.update_current_term(msg.term, None)?;
             self.core.current_leader = None;
             self.core.state = State::Follower;
-            self.core.save_hard_state()?;
             self.core.report_metrics();
             info!(
                 "[Node({})] revert to follower due to greater term({}) observed in vote response then current term({})",

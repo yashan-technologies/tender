@@ -61,7 +61,7 @@ pub trait RaftType: 'static + Sized + Clone + Debug {
 /// the spawned task.
 ///
 pub struct Raft<T: RaftType> {
-    raft_handle: Option<JoinHandle<Result<()>>>,
+    raft_handle: Option<JoinHandle<()>>,
     msg_tx: Sender<Message<T>>,
     metrics_watcher: MetricsWatcher<T>,
 }

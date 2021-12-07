@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::RaftType;
+use std::error::Error;
 
 /// Heartbeat request.
 #[derive(Debug)]
@@ -44,6 +44,8 @@ pub struct VoteResponse<T: RaftType> {
 
 /// RPC interfaces used by raft.
 pub trait Rpc<T: RaftType> {
-    fn heartbeat(&self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>>;
-    fn vote(&self, msg: VoteRequest<T>) -> Result<VoteResponse<T>>;
+    type Err: Error;
+
+    fn heartbeat(&self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>, Self::Err>;
+    fn vote(&self, msg: VoteRequest<T>) -> Result<VoteResponse<T>, Self::Err>;
 }

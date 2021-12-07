@@ -1,5 +1,4 @@
 use crate::core::{RaftCore, State};
-use crate::error::Result;
 use crate::msg::Message;
 use crate::{Event, RaftType};
 use crossbeam_channel::RecvTimeoutError;
@@ -14,7 +13,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
         Self { core }
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(mut self) {
         assert_eq!(self.core.state, State::Follower);
         self.core.next_election_timeout = None;
         self.core.notify_event(Event::TransitToFollower);
@@ -24,7 +23,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
 
         loop {
             if self.core.state != State::Follower {
-                return Ok(());
+                return;
             }
 
             let election_timeout = self.core.next_election_timeout();

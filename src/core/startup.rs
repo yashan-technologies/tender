@@ -1,7 +1,7 @@
 use crate::core::{MemberConfig, RaftCore, State};
 use crate::error::Result;
 use crate::msg::Message;
-use crate::{Event, RaftType, Storage};
+use crate::{Error, Event, HardState, RaftType, Storage};
 use crossbeam_channel::RecvTimeoutError;
 use std::collections::HashSet;
 
@@ -15,10 +15,35 @@ impl<'a, T: RaftType> Startup<'a, T> {
         Self { core }
     }
 
+    /// Note: No field will be changed If it returns error.
     #[inline]
     fn init_with_members(&mut self, mut members: HashSet<T::NodeId>) -> Result<()> {
         if !members.contains(&self.core.node_id) {
             members.insert(self.core.node_id.clone());
+        }
+
+        if members.len() == 1 {
+            let hard_state = HardState {
+                current_term: self.core.hard_state.current_term + 1,
+                voted_for: Some(self.core.node_id.clone()),
+            };
+            self.core
+                .storage
+                .save_hard_state(&hard_state)
+                .map_err(|e| Error::StorageError(e.to_string()))?;
+            self.core.hard_state = hard_state;
+            self.core.state = State::Leader;
+            info!(
+                "[Node({})] raft is initialized without other members, so directly transit to leader",
+                self.core.node_id
+            );
+        } else {
+            self.core.state = State::PreCandidate;
+            info!(
+                "[Node({})] raft is initialized with {} members, so transit to pre-candidate",
+                self.core.node_id,
+                members.len()
+            );
         }
 
         self.core.members = MemberConfig {
@@ -26,37 +51,26 @@ impl<'a, T: RaftType> Startup<'a, T> {
             members_after_consensus: None,
         };
 
-        if self.core.members.members.len() == 1 {
-            self.core.hard_state.current_term += 1;
-            self.core.hard_state.voted_for = Some(self.core.node_id.clone());
-            self.core.state = State::Leader;
-            info!(
-                "[Node({})] raft is initialized without other members, so directly transit to leader",
-                self.core.node_id
-            );
-            self.core.save_hard_state()?;
-        } else {
-            self.core.state = State::PreCandidate;
-            info!(
-                "[Node({})] raft is initialized with {} members, so transit to pre-candidate",
-                self.core.node_id,
-                self.core.members.members.len()
-            );
-        }
         self.core.report_metrics();
 
         Ok(())
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(mut self) {
         assert_eq!(self.core.state, State::Startup);
         self.core.notify_event(Event::Startup);
 
-        let state = self
-            .core
-            .storage
-            .load_hard_state()
-            .map_err(|e| self.core.map_fatal_storage_error(e))?;
+        let state = match self.core.storage.load_hard_state() {
+            Ok(s) => s,
+            Err(e) => {
+                error!(
+                    "[Node({})] raft is shutting down caused by fatal storage error: {}",
+                    self.core.node_id, e
+                );
+                self.core.state = State::Shutdown;
+                return;
+            }
+        };
         self.core.set_hard_state(state);
         self.core.report_metrics();
 
@@ -64,7 +78,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
 
         loop {
             if self.core.state != State::Startup {
-                return Ok(());
+                return;
             }
 
             let election_timeout = self.core.next_election_timeout();

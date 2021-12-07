@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::RaftType;
+use std::error::Error;
 
 /// Raft persistent state.
 #[derive(Clone, Default)]
@@ -12,7 +12,9 @@ pub struct HardState<T: RaftType> {
 
 /// Storage interfaces used by raft.
 pub trait Storage<T: RaftType> {
-    fn load_hard_state(&self) -> Result<HardState<T>>;
-    fn save_hard_state(&self, hard_state: &HardState<T>) -> Result<()>;
-    fn load_vote_factor(&self) -> Result<T::VoteFactor>;
+    type Err: Error;
+
+    fn load_hard_state(&self) -> Result<HardState<T>, Self::Err>;
+    fn save_hard_state(&self, hard_state: &HardState<T>) -> Result<(), Self::Err>;
+    fn load_vote_factor(&self) -> Result<T::VoteFactor, Self::Err>;
 }

@@ -2,6 +2,7 @@
 
 use log::LevelFilter;
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, RwLock};
 use tender::{
@@ -88,17 +89,19 @@ impl<T: RaftType> MemStore<T> {
 }
 
 impl<T: RaftType> Storage<T> for MemStore<T> {
-    fn load_hard_state(&self) -> Result<HardState<T>> {
+    type Err = std::convert::Infallible;
+
+    fn load_hard_state(&self) -> std::result::Result<HardState<T>, Self::Err> {
         Ok(self.hard_state.lock().unwrap().clone())
     }
 
-    fn save_hard_state(&self, hard_state: &HardState<T>) -> Result<()> {
+    fn save_hard_state(&self, hard_state: &HardState<T>) -> std::result::Result<(), Self::Err> {
         let mut s = self.hard_state.lock().unwrap();
         *s = hard_state.clone();
         Ok(())
     }
 
-    fn load_vote_factor(&self) -> Result<T::VoteFactor> {
+    fn load_vote_factor(&self) -> std::result::Result<T::VoteFactor, Self::Err> {
         Ok(self.vote_factor.clone())
     }
 }
@@ -176,12 +179,29 @@ impl MemRouter {
     }
 }
 
+#[derive(Debug)]
+pub struct RpcError(String);
+
+impl Display for RpcError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RPC error: {}", self.0)
+    }
+}
+
+impl std::error::Error for RpcError {}
+
 impl Rpc<MemRaftType> for MemRouter {
-    fn heartbeat(&self, msg: HeartbeatRequest<MemRaftType>) -> Result<HeartbeatResponse<MemRaftType>> {
+    type Err = RpcError;
+
+    fn heartbeat(
+        &self,
+        msg: HeartbeatRequest<MemRaftType>,
+    ) -> std::result::Result<HeartbeatResponse<MemRaftType>, RpcError> {
         let rt = self.routing_table.read().unwrap();
         let node = match rt.get(&msg.target_node_id) {
             None => {
-                return Err(Error::RpcError(format!(
+                return Err(RpcError(format!(
                     "target node({}) not found in routing table",
                     msg.target_node_id
                 )))
@@ -189,15 +209,15 @@ impl Rpc<MemRaftType> for MemRouter {
             Some(n) => n,
         };
 
-        let resp = node.heartbeat(msg)?;
+        let resp = node.heartbeat(msg).map_err(|e| RpcError(e.to_string()))?;
         Ok(resp)
     }
 
-    fn vote(&self, msg: VoteRequest<MemRaftType>) -> Result<VoteResponse<MemRaftType>> {
+    fn vote(&self, msg: VoteRequest<MemRaftType>) -> std::result::Result<VoteResponse<MemRaftType>, RpcError> {
         let rt = self.routing_table.read().unwrap();
         let node = match rt.get(&msg.target_node_id) {
             None => {
-                return Err(Error::RpcError(format!(
+                return Err(RpcError(format!(
                     "target node({}) not found in routing table",
                     msg.target_node_id
                 )))
@@ -205,7 +225,7 @@ impl Rpc<MemRaftType> for MemRouter {
             Some(n) => n,
         };
 
-        let resp = node.vote(msg)?;
+        let resp = node.vote(msg).map_err(|e| RpcError(e.to_string()))?;
         Ok(resp)
     }
 }

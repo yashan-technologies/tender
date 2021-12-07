@@ -1,5 +1,4 @@
 use crate::core::{RaftCore, State};
-use crate::error::Result;
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
 use crate::{Event, HeartbeatResponse, RaftType, Rpc, TaskSpawner};
@@ -102,7 +101,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
         }
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(mut self) {
         assert_eq!(self.core.state, State::Leader);
         self.core.notify_event(Event::TransitToLeader(self.target_members()));
 
@@ -120,7 +119,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
         loop {
             if self.core.state != State::Leader {
-                return Ok(());
+                return;
             }
 
             let heartbeat_timeout = self.next_heartbeat_timeout();

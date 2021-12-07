@@ -138,41 +138,31 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    pub fn spawn(self) -> Result<JoinHandle<Result<()>>> {
+    pub fn spawn(self) -> Result<JoinHandle<()>> {
         std::thread::Builder::new()
             .name(String::from("raft-main"))
             .spawn(move || self.main())
             .map_err(|e| Error::TaskError(format!("failed to spawn raft main task: {}", e)))
     }
 
-    fn main(mut self) -> Result<()> {
+    fn main(mut self) {
         info!("[Node({})] start raft main task", self.node_id);
         self.state = State::Startup;
 
         loop {
             match &self.state {
-                State::Startup => Startup::new(&mut self).run()?,
-                State::Follower => Follower::new(&mut self).run()?,
-                State::PreCandidate => Candidate::new(&mut self, true).run()?,
-                State::Candidate => Candidate::new(&mut self, false).run()?,
-                State::Leader => Leader::new(&mut self).run()?,
+                State::Startup => Startup::new(&mut self).run(),
+                State::Follower => Follower::new(&mut self).run(),
+                State::PreCandidate => Candidate::new(&mut self, true).run(),
+                State::Candidate => Candidate::new(&mut self, false).run(),
+                State::Leader => Leader::new(&mut self).run(),
                 State::Shutdown => {
                     self.notify_event(Event::Shutdown);
                     info!("[Node({})] Raft has shutdown", self.node_id);
-                    return Ok(());
+                    return;
                 }
             }
         }
-    }
-
-    #[inline]
-    fn map_fatal_storage_error(&mut self, error: Error) -> Error {
-        error!(
-            "[Node({})] raft is shutting down caused by fatal storage error: {}",
-            self.node_id, error
-        );
-        self.state = State::Shutdown;
-        error
     }
 
     #[inline]
@@ -227,16 +217,26 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    fn update_current_term(&mut self, new_term: u64, voted_for: Option<T::NodeId>) {
+    fn update_current_term(&mut self, new_term: u64, voted_for: Option<T::NodeId>) -> Result<()> {
         if new_term > self.hard_state.current_term {
-            self.hard_state.current_term = new_term;
-            self.hard_state.voted_for = voted_for;
+            let hard_state = HardState {
+                current_term: new_term,
+                voted_for,
+            };
+            self.storage
+                .save_hard_state(&hard_state)
+                .map_err(|e| Error::StorageError(e.to_string()))?;
+            self.hard_state = hard_state;
         }
+
+        Ok(())
     }
 
     #[inline]
     fn save_hard_state(&mut self) -> Result<()> {
-        self.storage.save_hard_state(&self.hard_state)
+        self.storage
+            .save_hard_state(&self.hard_state)
+            .map_err(|e| Error::StorageError(e.to_string()))
     }
 
     fn handle_heartbeat(&mut self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
@@ -260,8 +260,7 @@ impl<T: RaftType> RaftCore<T> {
 
         // update current term if needed
         if self.hard_state.current_term != msg.term {
-            self.update_current_term(msg.term, None);
-            self.save_hard_state()?;
+            self.update_current_term(msg.term, None)?;
             report_metrics = true;
         }
 
@@ -350,16 +349,18 @@ impl<T: RaftType> RaftCore<T> {
                 "[Node({})] vote request term({}) is greater than current term({}), so transit to follower",
                 self.node_id, msg.term, self.hard_state.current_term
             );
-            self.update_current_term(msg.term, None);
+            self.update_current_term(msg.term, None)?;
             self.update_next_election_timeout(false);
             self.state = State::Follower;
-            self.save_hard_state()?;
             self.report_metrics();
         }
 
         // Check if candidate's vote factor can be granted.
         // If candidate's vote factor is not granted, then reject.
-        let current_vote_factor = self.storage.load_vote_factor()?;
+        let current_vote_factor = self
+            .storage
+            .load_vote_factor()
+            .map_err(|e| Error::StorageError(e.to_string()))?;
         let candidate_is_granted = current_vote_factor.vote(&msg.factor);
         if !candidate_is_granted {
             debug!(
@@ -379,8 +380,8 @@ impl<T: RaftType> RaftCore<T> {
         match &self.hard_state.voted_for {
             None => {
                 // This node has not yet voted for the current term, so vote for the candidate.
-                self.hard_state.voted_for = Some(msg.candidate_id.clone());
                 self.state = State::Follower;
+                self.hard_state.voted_for = Some(msg.candidate_id.clone());
                 self.update_next_election_timeout(false);
                 self.save_hard_state()?;
                 self.report_metrics();
