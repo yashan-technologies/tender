@@ -103,7 +103,10 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
     pub fn run(mut self) {
         assert_eq!(self.core.state, State::Leader);
-        self.core.notify_event(Event::TransitToLeader(self.target_members()));
+        self.core.notify_event(Event::TransitToLeader {
+            members: self.target_members(),
+            term: self.core.hard_state.current_term,
+        });
 
         // Setup state as leader
         self.core.last_heartbeat = None;

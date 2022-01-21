@@ -5,7 +5,7 @@ use std::collections::HashSet;
 #[derive(Clone, Debug)]
 pub enum Event<T: RaftType> {
     Startup,
-    TransitToLeader(HashSet<T::NodeId>),
+    TransitToLeader { members: HashSet<T::NodeId>, term: u64 },
     TransitToFollower,
     TransitToPreCandidate,
     TransitToCandidate,
