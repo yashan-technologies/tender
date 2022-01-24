@@ -16,7 +16,9 @@ impl<'a, T: RaftType> Follower<'a, T> {
     pub fn run(mut self) {
         assert_eq!(self.core.state, State::Follower);
         self.core.next_election_timeout = None;
-        self.core.notify_event(Event::TransitToFollower);
+        self.core.notify_event(Event::TransitToFollower {
+            term: self.core.hard_state.current_term,
+        });
         self.core.report_metrics();
 
         info!("[Node({})] start the follower loop", self.core.node_id);

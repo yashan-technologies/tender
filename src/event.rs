@@ -6,7 +6,7 @@ use std::collections::HashSet;
 pub enum Event<T: RaftType> {
     Startup,
     TransitToLeader { members: HashSet<T::NodeId>, term: u64 },
-    TransitToFollower,
+    TransitToFollower { term: u64 },
     TransitToPreCandidate,
     TransitToCandidate,
     ChangeLeader(T::NodeId),
