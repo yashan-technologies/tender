@@ -166,6 +166,11 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
+    fn update_options(&mut self, options: Options) {
+        self.options = options;
+    }
+
+    #[inline]
     fn set_hard_state(&mut self, state: HardState<T>) {
         self.hard_state = state;
     }

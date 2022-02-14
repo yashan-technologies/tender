@@ -163,4 +163,17 @@ impl<T: RaftType> Raft<T> {
             .and_then(|res| res)?;
         Ok(resp)
     }
+
+    /// Updates `Options` of this raft node.
+    #[inline]
+    pub fn update_options(&self, options: Options) -> Result<()> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.msg_tx
+            .send(Message::UpdateOptions { options, tx })
+            .map_err(|e| Error::ChannelError(format!("failed to send update options to message channel: {}", e)))?;
+        rx.recv()
+            .map_err(|e| Error::ChannelError(format!("failed to receive update options result from channel: {}", e)))
+            .and_then(|res| res)?;
+        Ok(())
+    }
 }

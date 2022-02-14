@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
-use tender::State;
+use tender::{Options, State};
 
 /// Single-node initialization test.
 ///
@@ -21,6 +21,17 @@ fn test_single_node() {
 
     let mem_router = Arc::new(MemRouter::new(1));
     mem_router.new_node(1, MemVoteFactor::new(0));
+
+    sleep(Duration::from_secs(1));
+    mem_router.assert_node_state(1, State::Startup, 0, None);
+
+    let options = Options::builder()
+        .election_timeout_min(1000)
+        .election_timeout_max(1100)
+        .heartbeat_interval(300)
+        .build()
+        .unwrap();
+    mem_router.update_options(1, options);
 
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(1, State::Startup, 0, None);

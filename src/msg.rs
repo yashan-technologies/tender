@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
-use crate::RaftType;
+use crate::{Options, RaftType};
 use crossbeam_channel::Sender;
 use std::collections::HashSet;
 
@@ -18,6 +18,10 @@ pub enum Message<T: RaftType> {
     VoteResponse(VoteResponse<T>),
     Initialize {
         members: HashSet<T::NodeId>,
+        tx: Sender<Result<()>>,
+    },
+    UpdateOptions {
+        options: Options,
         tx: Sender<Result<()>>,
     },
     Shutdown,

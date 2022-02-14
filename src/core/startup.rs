@@ -89,6 +89,11 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         Message::Initialize { members, tx } => {
                             let _ = tx.send(self.init_with_members(members));
                         }
+                        Message::UpdateOptions { options, tx } => {
+                            info!("[Node({})] raft update options: {:?}", self.core.node_id, options);
+                            self.core.update_options(options);
+                            let _ = tx.send(Ok(()));
+                        }
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
                             self.core.state = State::Shutdown;

@@ -159,6 +159,11 @@ impl MemRouter {
         self.routing_table.write().unwrap().remove(&node_id)
     }
 
+    pub fn update_options(&self, node_id: NodeId, options: Options) {
+        let rt = self.routing_table.read().unwrap();
+        rt.get(&node_id).unwrap().update_options(options).unwrap();
+    }
+
     pub fn metrics(&self, node_id: NodeId) -> Metrics<MemRaftType> {
         let mut metrics_watcher = {
             let rt = self.routing_table.read().unwrap();
