@@ -98,8 +98,19 @@ impl<'a, T: RaftType> Startup<'a, T> {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
                             self.core.state = State::Shutdown;
                         }
-                        _ => {
-                            // ignore other messages in startup state
+                        Message::Heartbeat { .. } => {
+                            // ignore heart message in startup state
+                            // tx is dropped here, so user will receive a error
+                        }
+                        Message::HeartbeatResponse(_) => {
+                            // ignore heartbeat response in startup state
+                        }
+                        Message::VoteRequest { .. } => {
+                            // ignore vote request message in startup state
+                            // tx is dropped here, so user will receive a error
+                        }
+                        Message::VoteResponse(_) => {
+                            // ignore vote response in startup state
                         }
                     }
                 }
