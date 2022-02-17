@@ -1,7 +1,7 @@
 use crate::core::{RaftCore, State};
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
-use crate::{Event, HeartbeatResponse, RaftType, Rpc, TaskSpawner};
+use crate::{Event, HeartbeatResponse, RaftType, Rpc};
 use crossbeam_channel::RecvTimeoutError;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -65,20 +65,17 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
             trace!("[Node({})] send heartbeat to node({})", node_id, member);
 
-            let _ = self
-                .core
-                .task_spawner
-                .spawn(Some(String::from("raft-heartbeat")), move || {
-                    match rpc.heartbeat(req) {
-                        Ok(resp) => {
-                            // ignore send error
-                            let _ = tx.send(Message::HeartbeatResponse(resp));
-                        }
-                        Err(e) => {
-                            warn!("[Node({})] failed to send vote request to {}: {}", node_id, member, e);
-                        }
+            let _ = self.core.spawn_task("raft-heartbeat", move || {
+                match rpc.heartbeat(req) {
+                    Ok(resp) => {
+                        // ignore send error
+                        let _ = tx.send(Message::HeartbeatResponse(resp));
                     }
-                });
+                    Err(e) => {
+                        warn!("[Node({})] failed to send vote request to {}: {}", node_id, member, e);
+                    }
+                }
+            });
         }
     }
 

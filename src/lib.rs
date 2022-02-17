@@ -14,6 +14,7 @@ mod options;
 mod rpc;
 mod storage;
 mod task;
+mod wait_group;
 
 pub use crate::core::State;
 pub use crate::error::{Error, Result};

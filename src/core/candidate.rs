@@ -3,7 +3,7 @@ use crate::error::Result;
 use crate::msg::Message;
 use crate::rpc::{Rpc, VoteRequest, VoteResponse};
 use crate::storage::Storage;
-use crate::{Event, RaftType, TaskSpawner};
+use crate::{Event, RaftType};
 use crossbeam_channel::RecvTimeoutError;
 
 pub struct Candidate<'a, T: RaftType> {
@@ -200,20 +200,17 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             let tx = self.core.msg_tx.clone();
             let node_id = self.core.node_id.clone();
 
-            let _ = self
-                .core
-                .task_spawner
-                .spawn(Some(String::from("raft-vote")), move || match rpc.vote(req) {
-                    Ok(resp) => {
-                        let _ = tx.send(Message::VoteResponse(resp));
-                    }
-                    Err(e) => {
-                        warn!(
-                            "[Node({})] failed to send vote request to node({}): {}",
-                            node_id, member, e
-                        );
-                    }
-                });
+            let _ = self.core.spawn_task("raft-vote", move || match rpc.vote(req) {
+                Ok(resp) => {
+                    let _ = tx.send(Message::VoteResponse(resp));
+                }
+                Err(e) => {
+                    warn!(
+                        "[Node({})] failed to send vote request to node({}): {}",
+                        node_id, member, e
+                    );
+                }
+            });
         }
     }
 

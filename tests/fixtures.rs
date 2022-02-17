@@ -57,11 +57,10 @@ impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
 pub struct ThreadSpawner;
 
 impl TaskSpawner for ThreadSpawner {
-    fn spawn<F, T>(&self, name: Option<String>, f: F) -> Result<()>
+    fn spawn<F>(&self, name: Option<String>, f: F) -> Result<()>
     where
-        F: FnOnce() -> T,
+        F: FnOnce(),
         F: Send + 'static,
-        T: Send + 'static,
     {
         let mut builder = std::thread::Builder::new();
         if let Some(s) = name {

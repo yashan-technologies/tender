@@ -8,6 +8,7 @@ use crate::msg::Message;
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
+use crate::wait_group::WaitGroup;
 use crate::{Event, EventListener, Options, RaftType, VoteFactor};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashSet;
@@ -96,6 +97,8 @@ pub struct RaftCore<T: RaftType> {
     msg_rx: Receiver<Message<T>>,
     event_listeners: Vec<Arc<dyn EventListener<T>>>,
     metrics_reporter: MetricsReporter<T>,
+
+    task_wait_group: WaitGroup,
 }
 
 impl<T: RaftType> RaftCore<T> {
@@ -134,6 +137,7 @@ impl<T: RaftType> RaftCore<T> {
             msg_rx,
             event_listeners,
             metrics_reporter,
+            task_wait_group: WaitGroup::new(),
         }
     }
 
@@ -158,7 +162,8 @@ impl<T: RaftType> RaftCore<T> {
                 State::Leader => Leader::new(&mut self).run(),
                 State::Shutdown => {
                     self.notify_event(Event::Shutdown);
-                    info!("[Node({})] Raft has shutdown", self.node_id);
+                    self.task_wait_group.wait();
+                    info!("[Node({})] Raft is shutdown", self.node_id);
                     return;
                 }
             }
@@ -242,6 +247,24 @@ impl<T: RaftType> RaftCore<T> {
         self.storage
             .save_hard_state(&self.hard_state)
             .map_err(|e| Error::StorageError(e.to_string()))
+    }
+
+    #[inline]
+    fn spawn_task<F>(&self, name: &str, f: F) -> Result<()>
+    where
+        F: FnOnce(),
+        F: Send + 'static,
+    {
+        let mut s = String::new();
+        s.try_reserve_exact(name.len())
+            .map_err(|_| Error::MemAllocError(name.len()))?;
+        s.push_str(name);
+
+        let wg = self.task_wait_group.clone();
+        self.task_spawner.spawn(Some(s), move || {
+            f();
+            drop(wg);
+        })
     }
 
     fn handle_heartbeat(&mut self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
@@ -407,12 +430,12 @@ impl<T: RaftType> RaftCore<T> {
         for listener in &self.event_listeners {
             let listener = listener.clone();
             let event = event.clone();
-            // TODO: handle error
-            let _ = self
-                .task_spawner
-                .spawn(Some(String::from("raft-event-listener")), move || {
-                    listener.event_performed(event);
-                });
+            let result = self.spawn_task("raft-event-listener", move || {
+                listener.event_performed(event);
+            });
+            if let Err(e) = result {
+                warn!("[Node({})] failed to spawn task to notify event: {}", self.node_id, e);
+            }
         }
     }
 
