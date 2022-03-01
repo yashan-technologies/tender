@@ -38,9 +38,11 @@ impl<'a, T: RaftType> Startup<'a, T> {
                 self.core.node_id
             );
         } else {
-            self.core.state = State::PreCandidate;
+            // Do not to change to PreCandidate/Candidate,
+            // because we need to ensure that restarted nodes don't disrupt a stable cluster.
+            self.core.state = State::Follower;
             info!(
-                "[Node({})] raft is initialized with {} members, so transit to pre-candidate",
+                "[Node({})] raft is initialized with {} members, so transit to follower",
                 self.core.node_id,
                 members.len()
             );

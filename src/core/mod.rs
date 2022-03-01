@@ -163,7 +163,7 @@ impl<T: RaftType> RaftCore<T> {
                 State::Shutdown => {
                     self.notify_event(Event::Shutdown);
                     self.task_wait_group.wait();
-                    info!("[Node({})] Raft is shutdown", self.node_id);
+                    info!("[Node({})] Raft has shutdown", self.node_id);
                     return;
                 }
             }
