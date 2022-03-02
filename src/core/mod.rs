@@ -84,6 +84,7 @@ pub struct RaftCore<T: RaftType> {
     rpc: Arc<T::Rpc>,
 
     state: State,
+    prev_state: State,
     hard_state: HardState<T>,
     current_leader: Option<T::NodeId>,
     vote_id: u64,
@@ -122,6 +123,7 @@ impl<T: RaftType> RaftCore<T> {
             node_id: node_id.clone(),
             members: MemberConfig::with_node(node_id),
             state: State::Startup,
+            prev_state: State::Startup,
             hard_state: HardState {
                 current_term: 0,
                 voted_for: None,
@@ -151,10 +153,10 @@ impl<T: RaftType> RaftCore<T> {
 
     fn main(mut self) {
         info!("[Node({})] start raft main task", self.node_id);
-        self.state = State::Startup;
+        self.set_state(State::Startup);
 
         loop {
-            match &self.state {
+            match self.state {
                 State::Startup => Startup::new(&mut self).run(),
                 State::Follower => Follower::new(&mut self).run(),
                 State::PreCandidate => Candidate::new(&mut self, true).run(),
@@ -173,6 +175,27 @@ impl<T: RaftType> RaftCore<T> {
     #[inline]
     fn update_options(&mut self, options: Options) {
         self.options = options;
+    }
+
+    #[inline]
+    fn state(&self) -> State {
+        self.state
+    }
+
+    #[inline]
+    fn prev_state(&self) -> State {
+        self.prev_state
+    }
+
+    #[inline]
+    fn is_state(&self, state: State) -> bool {
+        self.state == state
+    }
+
+    #[inline]
+    fn set_state(&mut self, state: State) {
+        self.prev_state = self.state;
+        self.state = state;
     }
 
     #[inline]
@@ -311,12 +334,13 @@ impl<T: RaftType> RaftCore<T> {
         }
 
         // transition to follower state if needed
-        if self.state != State::Follower {
+        if !self.is_state(State::Follower) {
             info!(
                 "[Node({})] raft received valid heartbeat in {:?} state, so transit to follower",
-                self.node_id, self.state
+                self.node_id,
+                self.state()
             );
-            self.state = State::Follower;
+            self.set_state(State::Follower);
             report_metrics = true;
         }
 
@@ -379,7 +403,7 @@ impl<T: RaftType> RaftCore<T> {
             );
             self.update_current_term(msg.term, None)?;
             self.update_next_election_timeout(false);
-            self.state = State::Follower;
+            self.set_state(State::Follower);
             self.report_metrics();
         }
 
@@ -408,7 +432,7 @@ impl<T: RaftType> RaftCore<T> {
         match &self.hard_state.voted_for {
             None => {
                 // This node has not yet voted for the current term, so vote for the candidate.
-                self.state = State::Follower;
+                self.set_state(State::Follower);
                 self.hard_state.voted_for = Some(msg.candidate_id.clone());
                 self.update_next_election_timeout(false);
                 self.save_hard_state()?;
@@ -443,14 +467,14 @@ impl<T: RaftType> RaftCore<T> {
     fn reject_init_with_members(&self, tx: Sender<Result<()>>) {
         let _ = tx.send(Err(Error::NotAllowed(format!(
             "can't init with members in {:?} state",
-            self.state,
+            self.state(),
         ))));
     }
 
     #[inline]
     fn report_metrics(&mut self) {
         self.metrics_reporter.report(Metrics {
-            state: self.state,
+            state: self.state(),
             current_term: self.hard_state.current_term,
             current_leader: self.current_leader.clone(),
         })

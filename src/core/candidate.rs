@@ -35,23 +35,19 @@ impl<'a, T: RaftType> Candidate<'a, T> {
     #[inline]
     fn is_specified_candidate(&self) -> bool {
         if self.pre_vote {
-            if self.core.state == State::PreCandidate {
-                return true;
-            }
-        } else if self.core.state == State::Candidate {
-            return true;
+            self.core.is_state(State::PreCandidate)
+        } else {
+            self.core.is_state(State::Candidate)
         }
-
-        false
     }
 
     pub fn run(mut self) {
         if self.pre_vote {
-            assert_eq!(self.core.state, State::PreCandidate);
+            assert!(self.core.is_state(State::PreCandidate));
             self.core.notify_event(Event::TransitToPreCandidate);
             info!("[Node({})] start the pre-candidate loop", self.core.node_id);
         } else {
-            assert_eq!(self.core.state, State::Candidate);
+            assert!(self.core.is_state(State::Candidate));
             self.core.notify_event(Event::TransitToCandidate);
             info!("[Node({})] start the candidate loop", self.core.node_id);
         }
@@ -80,7 +76,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         "[Node({})] raft is shutting down caused by fatal storage error: {}",
                         self.core.node_id, e
                     );
-                    self.core.state = State::Shutdown;
+                    self.core.set_state(State::Shutdown);
                     return;
                 }
                 self.core.report_metrics();
@@ -135,7 +131,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         }
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
-                            self.core.state = State::Shutdown;
+                            self.core.set_state(State::Shutdown);
                         }
                     },
                     Err(e) => match e {
@@ -145,7 +141,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         }
                         RecvTimeoutError::Disconnected => {
                             info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                            self.core.state = State::Shutdown;
+                            self.core.set_state(State::Shutdown);
                         }
                     },
                 }
@@ -230,7 +226,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
         if msg.term > self.core.hard_state.current_term {
             self.core.update_current_term(msg.term, None)?;
             self.core.current_leader = None;
-            self.core.state = State::Follower;
+            self.core.set_state(State::Follower);
             self.core.report_metrics();
             info!(
                 "[Node({})] revert to follower due to greater term({}) observed in vote response then current term({})",
@@ -260,13 +256,13 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         "[Node({})] minimum number of pre-votes have been received, so transit to candidate",
                         self.core.node_id
                     );
-                    self.core.state = State::Candidate;
+                    self.core.set_state(State::Candidate);
                 } else {
                     info!(
                         "[Node({})] minimum number of votes have been received, so transit to leader",
                         self.core.node_id
                     );
-                    self.core.state = State::Leader;
+                    self.core.set_state(State::Leader);
                 }
                 self.core.report_metrics();
                 return Ok(());

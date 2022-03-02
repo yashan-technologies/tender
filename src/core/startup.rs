@@ -32,7 +32,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                 .save_hard_state(&hard_state)
                 .map_err(|e| Error::StorageError(e.to_string()))?;
             self.core.hard_state = hard_state;
-            self.core.state = State::Leader;
+            self.core.set_state(State::Leader);
             info!(
                 "[Node({})] raft is initialized without other members, so directly transit to leader",
                 self.core.node_id
@@ -40,7 +40,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
         } else {
             // Do not to change to PreCandidate/Candidate,
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
-            self.core.state = State::Follower;
+            self.core.set_state(State::Follower);
             info!(
                 "[Node({})] raft is initialized with {} members, so transit to follower",
                 self.core.node_id,
@@ -59,7 +59,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
     }
 
     pub fn run(mut self) {
-        assert_eq!(self.core.state, State::Startup);
+        assert!(self.core.is_state(State::Startup));
         self.core.notify_event(Event::Startup);
 
         let state = match self.core.storage.load_hard_state() {
@@ -69,7 +69,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                     "[Node({})] raft is shutting down caused by fatal storage error: {}",
                     self.core.node_id, e
                 );
-                self.core.state = State::Shutdown;
+                self.core.set_state(State::Shutdown);
                 return;
             }
         };
@@ -79,7 +79,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
         info!("[Node({})] start the startup loop", self.core.node_id);
 
         loop {
-            if self.core.state != State::Startup {
+            if !self.core.is_state(State::Startup) {
                 return;
             }
 
@@ -98,7 +98,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         }
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
-                            self.core.state = State::Shutdown;
+                            self.core.set_state(State::Shutdown);
                         }
                         Message::Heartbeat { .. } => {
                             // ignore heart message in startup state
@@ -123,7 +123,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                        self.core.state = State::Shutdown;
+                        self.core.set_state(State::Shutdown);
                     }
                 },
             }

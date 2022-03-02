@@ -94,12 +94,12 @@ impl<'a, T: RaftType> Leader<'a, T> {
                 "[Node({})] revert to follower due to a newer term from heartbeat response",
                 self.core.node_id
             );
-            self.core.state = State::Follower;
+            self.core.set_state(State::Follower);
         }
     }
 
     pub fn run(mut self) {
-        assert_eq!(self.core.state, State::Leader);
+        assert!(self.core.is_state(State::Leader));
         self.core.notify_event(Event::TransitToLeader {
             members: self.target_members(),
             term: self.core.hard_state.current_term,
@@ -118,7 +118,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
         );
 
         loop {
-            if self.core.state != State::Leader {
+            if !self.core.is_state(State::Leader) {
                 return;
             }
 
@@ -159,7 +159,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     Message::Shutdown => {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
-                        self.core.state = State::Shutdown;
+                        self.core.set_state(State::Shutdown);
                     }
                 },
                 Err(e) => match e {
@@ -170,7 +170,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                        self.core.state = State::Shutdown;
+                        self.core.set_state(State::Shutdown);
                     }
                 },
             }

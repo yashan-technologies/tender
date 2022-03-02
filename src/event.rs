@@ -1,4 +1,4 @@
-use crate::RaftType;
+use crate::{RaftType, State};
 use std::collections::HashSet;
 
 /// The event of the raft node.
@@ -6,7 +6,7 @@ use std::collections::HashSet;
 pub enum Event<T: RaftType> {
     Startup,
     TransitToLeader { members: HashSet<T::NodeId>, term: u64 },
-    TransitToFollower { term: u64 },
+    TransitToFollower { term: u64, prev_state: State },
     TransitToPreCandidate,
     TransitToCandidate,
     ChangeLeader(T::NodeId),

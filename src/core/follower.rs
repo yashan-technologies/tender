@@ -14,17 +14,18 @@ impl<'a, T: RaftType> Follower<'a, T> {
     }
 
     pub fn run(mut self) {
-        assert_eq!(self.core.state, State::Follower);
+        assert!(self.core.is_state(State::Follower));
         self.core.next_election_timeout = None;
         self.core.notify_event(Event::TransitToFollower {
             term: self.core.hard_state.current_term,
+            prev_state: self.core.prev_state(),
         });
         self.core.report_metrics();
 
         info!("[Node({})] start the follower loop", self.core.node_id);
 
         loop {
-            if self.core.state != State::Follower {
+            if !self.core.is_state(State::Follower) {
                 return;
             }
 
@@ -67,12 +68,12 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     }
                     Message::Shutdown => {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
-                        self.core.state = State::Shutdown;
+                        self.core.set_state(State::Shutdown);
                     }
                 },
                 Err(e) => match e {
                     RecvTimeoutError::Timeout => {
-                        self.core.state = State::PreCandidate;
+                        self.core.set_state(State::PreCandidate);
                         self.core.current_leader = None;
                         info!(
                             "[Node({})] an election timeout is hit, need to transit to pre-candidate",
@@ -81,7 +82,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                        self.core.state = State::Shutdown;
+                        self.core.set_state(State::Shutdown);
                     }
                 },
             }
