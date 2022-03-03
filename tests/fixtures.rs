@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, RwLock};
 use tender::{
-    Error, Event, EventListener, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, Options, Raft, RaftType,
+    Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, Options, Raft, RaftType,
     Result, Rpc, State, Storage, TaskSpawner, VoteFactor, VoteRequest, VoteResponse,
 };
 
@@ -57,15 +57,13 @@ impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
 pub struct ThreadSpawner;
 
 impl TaskSpawner for ThreadSpawner {
-    fn spawn<F>(&self, name: Option<String>, f: F) -> Result<()>
+    fn spawn<F>(&self, name: String, f: F) -> Result<()>
     where
         F: FnOnce(),
         F: Send + 'static,
     {
         let mut builder = std::thread::Builder::new();
-        if let Some(s) = name {
-            builder = builder.name(s);
-        }
+        builder = builder.name(name);
         let _ = builder
             .spawn(f)
             .map_err(|e| Error::TaskError(format!("failed to spawn thread: {}", e)))?;
@@ -133,7 +131,7 @@ impl MemRouter {
             .unwrap();
         let task_spawner = Arc::new(ThreadSpawner);
         let mem_store = MemStore::new(HardState::default(), vote_factor);
-        let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventListener<MemRaftType>>;
+        let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventHandler<MemRaftType>>;
         let raft = MemRaft::start(
             options,
             self.group_id,
@@ -141,7 +139,7 @@ impl MemRouter {
             task_spawner,
             mem_store,
             self.clone(),
-            vec![event_listener],
+            event_listener,
         )
         .unwrap();
 
@@ -244,11 +242,12 @@ impl<T: RaftType> LoggingEventListener<T> {
     }
 }
 
-impl<T: RaftType> EventListener<T> for LoggingEventListener<T>
+impl<T: RaftType> EventHandler<T> for LoggingEventListener<T>
 where
     T::NodeId: Sync,
 {
-    fn event_performed(&self, event: Event<T>) {
+    fn handle_event(&self, event: Event<T>) -> Result<()> {
         log::info!("[Node({})] an event has happened: {:?}", self.node_id, event);
+        Ok(())
     }
 }

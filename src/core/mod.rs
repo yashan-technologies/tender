@@ -9,7 +9,7 @@ use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse}
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
 use crate::wait_group::WaitGroup;
-use crate::{Event, EventListener, Options, RaftType, VoteFactor};
+use crate::{Event, EventHandler, Options, RaftType, VoteFactor};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -96,7 +96,7 @@ pub struct RaftCore<T: RaftType> {
 
     msg_tx: Sender<Message<T>>,
     msg_rx: Receiver<Message<T>>,
-    event_listeners: Vec<Arc<dyn EventListener<T>>>,
+    event_handler: Arc<dyn EventHandler<T>>,
     metrics_reporter: MetricsReporter<T>,
 
     task_wait_group: WaitGroup,
@@ -114,7 +114,7 @@ impl<T: RaftType> RaftCore<T> {
         rpc: Arc<T::Rpc>,
         msg_tx: Sender<Message<T>>,
         msg_rx: Receiver<Message<T>>,
-        event_listeners: Vec<Arc<dyn EventListener<T>>>,
+        event_handler: Arc<dyn EventHandler<T>>,
         metrics_reporter: MetricsReporter<T>,
     ) -> Self {
         RaftCore {
@@ -137,7 +137,7 @@ impl<T: RaftType> RaftCore<T> {
             next_election_timeout: None,
             msg_tx,
             msg_rx,
-            event_listeners,
+            event_handler,
             metrics_reporter,
             task_wait_group: WaitGroup::new(),
         }
@@ -163,7 +163,7 @@ impl<T: RaftType> RaftCore<T> {
                 State::Candidate => Candidate::new(&mut self, false).run(),
                 State::Leader => Leader::new(&mut self).run(),
                 State::Shutdown => {
-                    self.notify_event(Event::Shutdown);
+                    let _result = self.handle_event(Event::Shutdown);
                     self.task_wait_group.wait();
                     info!("[Node({})] Raft has shutdown", self.node_id);
                     return;
@@ -195,6 +195,11 @@ impl<T: RaftType> RaftCore<T> {
     #[inline]
     fn set_state(&mut self, state: State) {
         self.prev_state = self.state;
+        self.state = state;
+    }
+
+    #[inline]
+    fn set_only_state(&mut self, state: State) {
         self.state = state;
     }
 
@@ -284,7 +289,7 @@ impl<T: RaftType> RaftCore<T> {
         s.push_str(name);
 
         let wg = self.task_wait_group.clone();
-        self.task_spawner.spawn(Some(s), move || {
+        self.task_spawner.spawn(s, move || {
             f();
             drop(wg);
         })
@@ -329,7 +334,7 @@ impl<T: RaftType> RaftCore<T> {
                 }
             }
             self.current_leader = Some(msg.leader_id.clone());
-            self.notify_event(Event::ChangeLeader(msg.leader_id));
+            let _result = self.handle_event(Event::ChangeLeader(msg.leader_id));
             report_metrics = true;
         }
 
@@ -450,17 +455,25 @@ impl<T: RaftType> RaftCore<T> {
         }
     }
 
-    fn notify_event(&self, event: Event<T>) {
-        for listener in &self.event_listeners {
-            let listener = listener.clone();
-            let event = event.clone();
-            let result = self.spawn_task("raft-event-listener", move || {
-                listener.event_performed(event);
-            });
-            if let Err(e) = result {
-                warn!("[Node({})] failed to spawn task to notify event: {}", self.node_id, e);
+    #[inline]
+    fn handle_event(&self, event: Event<T>) -> Result<()> {
+        let handler = self.event_handler.clone();
+        let ev = event.clone();
+        let tx = self.msg_tx.clone();
+        let result = self.spawn_task("raft-event-handler", move || {
+            let result = handler.handle_event(ev.clone());
+            if let Err(error) = result {
+                // ignore send error
+                let _ = tx.send(Message::EventHandlingError { event: ev, error });
             }
+        });
+        if let Err(ref e) = result {
+            error!(
+                "[Node({})] failed to spawn task to for event ({:?}): {}",
+                self.node_id, event, e
+            );
         }
+        result
     }
 
     #[inline]

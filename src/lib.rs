@@ -18,7 +18,7 @@ mod wait_group;
 
 pub use crate::core::State;
 pub use crate::error::{Error, Result};
-pub use crate::event::{Event, EventListener};
+pub use crate::event::{Event, EventHandler};
 pub use crate::metrics::{Metrics, MetricsWatcher};
 pub use crate::options::{Options, OptionsBuilder};
 pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, Rpc, VoteRequest, VoteResponse};
@@ -84,7 +84,7 @@ impl<T: RaftType> Raft<T> {
         task_spawner: Arc<T::TaskSpawner>,
         storage: T::Storage,
         rpc: Arc<T::Rpc>,
-        event_listeners: Vec<Arc<dyn EventListener<T>>>,
+        event_handler: Arc<dyn EventHandler<T>>,
     ) -> Result<Self> {
         let (msg_tx, msg_rx) = crossbeam_channel::bounded(64);
         let (metrics_reporter, metrics_watcher) = metrics_channel();
@@ -97,7 +97,7 @@ impl<T: RaftType> Raft<T> {
             rpc,
             msg_tx.clone(),
             msg_rx,
-            event_listeners,
+            event_handler,
             metrics_reporter,
         );
         let raft_handle = raft_core.spawn()?;

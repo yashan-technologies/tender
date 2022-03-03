@@ -100,10 +100,19 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
     pub fn run(mut self) {
         assert!(self.core.is_state(State::Leader));
-        self.core.notify_event(Event::TransitToLeader {
+        let result = self.core.handle_event(Event::TransitToLeader {
             members: self.target_members(),
             term: self.core.hard_state.current_term,
         });
+        if result.is_err() {
+            error!(
+                "[Node({})] failed to handle TransitToLeader event, so transit to follower",
+                self.core.node_id,
+            );
+            // Do not call set_state(), because we want keep prev_state unchanged
+            self.core.set_only_state(State::Follower);
+            return;
+        }
 
         // Setup state as leader
         self.core.last_heartbeat = None;
@@ -160,6 +169,22 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     Message::Shutdown => {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
                         self.core.set_state(State::Shutdown);
+                    }
+                    Message::EventHandlingError { event, error } => {
+                        error!(
+                            "[Node({})] raft failed to handle event ({:?}): {}",
+                            self.core.node_id, event, error
+                        );
+                        if let Event::TransitToLeader { term, .. } = event {
+                            if self.core.hard_state.current_term == term {
+                                error!(
+                                    "[Node({})] failed to handle TransitToLeader event, so transit to follower",
+                                    self.core.node_id,
+                                );
+                                // Do not call set_state(), because we want keep prev_state unchanged
+                                self.core.set_only_state(State::Follower);
+                            }
+                        }
                     }
                 },
                 Err(e) => match e {

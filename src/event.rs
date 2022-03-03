@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::{RaftType, State};
 use std::collections::HashSet;
 
@@ -13,8 +14,8 @@ pub enum Event<T: RaftType> {
     Shutdown,
 }
 
-/// The event listener of the raft node.
-pub trait EventListener<T: RaftType>: Send + Sync {
-    /// Notifies that a raft event is happened.
-    fn event_performed(&self, event: Event<T>);
+/// The event handler of the raft node.
+pub trait EventHandler<T: RaftType>: Send + Sync {
+    /// Handle the given raft event.
+    fn handle_event(&self, event: Event<T>) -> Result<()>;
 }

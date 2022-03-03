@@ -60,7 +60,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
 
     pub fn run(mut self) {
         assert!(self.core.is_state(State::Startup));
-        self.core.notify_event(Event::Startup);
+        let _result = self.core.handle_event(Event::Startup);
 
         let state = match self.core.storage.load_hard_state() {
             Ok(s) => s,
@@ -99,6 +99,12 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
                             self.core.set_state(State::Shutdown);
+                        }
+                        Message::EventHandlingError { event, error } => {
+                            error!(
+                                "[Node({})] raft failed to handle event ({:?}): {}",
+                                self.core.node_id, event, error
+                            );
                         }
                         Message::Heartbeat { .. } => {
                             // ignore heart message in startup state

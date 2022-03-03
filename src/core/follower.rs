@@ -16,7 +16,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
     pub fn run(mut self) {
         assert!(self.core.is_state(State::Follower));
         self.core.next_election_timeout = None;
-        self.core.notify_event(Event::TransitToFollower {
+        let _result = self.core.handle_event(Event::TransitToFollower {
             term: self.core.hard_state.current_term,
             prev_state: self.core.prev_state(),
         });
@@ -69,6 +69,12 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     Message::Shutdown => {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
                         self.core.set_state(State::Shutdown);
+                    }
+                    Message::EventHandlingError { event, error } => {
+                        error!(
+                            "[Node({})] raft failed to handle event ({:?}): {}",
+                            self.core.node_id, event, error
+                        );
                     }
                 },
                 Err(e) => match e {

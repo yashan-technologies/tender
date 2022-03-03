@@ -44,11 +44,11 @@ impl<'a, T: RaftType> Candidate<'a, T> {
     pub fn run(mut self) {
         if self.pre_vote {
             assert!(self.core.is_state(State::PreCandidate));
-            self.core.notify_event(Event::TransitToPreCandidate);
+            let _result = self.core.handle_event(Event::TransitToPreCandidate);
             info!("[Node({})] start the pre-candidate loop", self.core.node_id);
         } else {
             assert!(self.core.is_state(State::Candidate));
-            self.core.notify_event(Event::TransitToCandidate);
+            let _result = self.core.handle_event(Event::TransitToCandidate);
             info!("[Node({})] start the candidate loop", self.core.node_id);
         }
 
@@ -132,6 +132,12 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
                             self.core.set_state(State::Shutdown);
+                        }
+                        Message::EventHandlingError { event, error } => {
+                            error!(
+                                "[Node({})] raft failed to handle event ({:?}): {}",
+                                self.core.node_id, event, error
+                            );
                         }
                     },
                     Err(e) => match e {
