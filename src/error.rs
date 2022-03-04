@@ -21,4 +21,6 @@ pub enum Error {
     InvalidElectionTimeout { min: u64, max: u64 },
     #[error("{0}")]
     ChannelError(String),
+    #[error("{0}")]
+    EventError(String),
 }
