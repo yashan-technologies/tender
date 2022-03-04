@@ -153,7 +153,7 @@ impl<T: RaftType> RaftCore<T> {
 
     fn main(mut self) {
         info!("[Node({})] start raft main task", self.node_id);
-        self.set_state(State::Startup);
+        self.set_state(State::Startup, None);
 
         loop {
             match self.state {
@@ -193,13 +193,13 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    fn set_state(&mut self, state: State) {
-        self.prev_state = self.state;
-        self.state = state;
-    }
-
-    #[inline]
-    fn set_only_state(&mut self, state: State) {
+    fn set_state(&mut self, state: State, set_prev_state: Option<&mut bool>) {
+        if let Some(set_prev) = set_prev_state {
+            if *set_prev {
+                self.prev_state = self.state;
+                *set_prev = false;
+            }
+        }
         self.state = state;
     }
 
@@ -295,7 +295,11 @@ impl<T: RaftType> RaftCore<T> {
         })
     }
 
-    fn handle_heartbeat(&mut self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
+    fn handle_heartbeat(
+        &mut self,
+        msg: HeartbeatRequest<T>,
+        set_prev_state: Option<&mut bool>,
+    ) -> Result<HeartbeatResponse<T>> {
         self.check_group(&msg.group_id)?;
         self.check_node(&msg.target_node_id)?;
 
@@ -345,7 +349,7 @@ impl<T: RaftType> RaftCore<T> {
                 self.node_id,
                 self.state()
             );
-            self.set_state(State::Follower);
+            self.set_state(State::Follower, set_prev_state);
             report_metrics = true;
         }
 
@@ -373,7 +377,11 @@ impl<T: RaftType> RaftCore<T> {
         }
     }
 
-    fn handle_vote_request(&mut self, msg: VoteRequest<T>) -> Result<VoteResponse<T>> {
+    fn handle_vote_request(
+        &mut self,
+        msg: VoteRequest<T>,
+        mut set_prev_state: Option<&mut bool>,
+    ) -> Result<VoteResponse<T>> {
         self.check_group(&msg.group_id)?;
         self.check_node(&msg.target_node_id)?;
 
@@ -408,7 +416,8 @@ impl<T: RaftType> RaftCore<T> {
             );
             self.update_current_term(msg.term, None)?;
             self.update_next_election_timeout(false);
-            self.set_state(State::Follower);
+            #[allow(clippy::needless_option_as_deref)]
+            self.set_state(State::Follower, set_prev_state.as_deref_mut());
             self.report_metrics();
         }
 
@@ -437,7 +446,7 @@ impl<T: RaftType> RaftCore<T> {
         match &self.hard_state.voted_for {
             None => {
                 // This node has not yet voted for the current term, so vote for the candidate.
-                self.set_state(State::Follower);
+                self.set_state(State::Follower, set_prev_state);
                 self.hard_state.voted_for = Some(msg.candidate_id.clone());
                 self.update_next_election_timeout(false);
                 self.save_hard_state()?;

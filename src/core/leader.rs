@@ -80,7 +80,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
     }
 
     #[inline]
-    fn handle_heartbeat_response(&mut self, resp: HeartbeatResponse<T>) {
+    fn handle_heartbeat_response(&mut self, resp: HeartbeatResponse<T>, set_prev_state: Option<&mut bool>) {
         if self.core.group_id != resp.group_id {
             return;
         }
@@ -94,11 +94,14 @@ impl<'a, T: RaftType> Leader<'a, T> {
                 "[Node({})] revert to follower due to a newer term from heartbeat response",
                 self.core.node_id
             );
-            self.core.set_state(State::Follower);
+            self.core.set_state(State::Follower, set_prev_state);
         }
     }
 
     pub fn run(mut self) {
+        // Use set_prev_state to ensure prev_state can be set at most once.
+        let mut set_prev_state = Some(true);
+
         assert!(self.core.is_state(State::Leader));
         let result = self.core.handle_event(Event::TransitToLeader {
             members: self.target_members(),
@@ -109,8 +112,8 @@ impl<'a, T: RaftType> Leader<'a, T> {
                 "[Node({})] failed to handle TransitToLeader event, so transit to follower",
                 self.core.node_id,
             );
-            // Do not call set_state(), because we want keep prev_state unchanged
-            self.core.set_only_state(State::Follower);
+            // Do not set prev_state, because we want keep prev_state unchanged
+            self.core.set_state(State::Follower, None);
             return;
         }
 
@@ -136,7 +139,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
             match self.core.msg_rx.recv_deadline(heartbeat_timeout) {
                 Ok(msg) => match msg {
                     Message::Heartbeat { req, tx } => {
-                        let result = self.core.handle_heartbeat(req);
+                        let result = self.core.handle_heartbeat(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!(
                                 "[Node({})] failed to handle heartbeat request: {}",
@@ -146,10 +149,10 @@ impl<'a, T: RaftType> Leader<'a, T> {
                         let _ = tx.send(result);
                     }
                     Message::HeartbeatResponse(resp) => {
-                        self.handle_heartbeat_response(resp);
+                        self.handle_heartbeat_response(resp, set_prev_state.as_mut());
                     }
                     Message::VoteRequest { req, tx } => {
-                        let result = self.core.handle_vote_request(req);
+                        let result = self.core.handle_vote_request(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!("[Node({})] failed to handle vote request: {}", self.core.node_id, e);
                         }
@@ -168,7 +171,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     Message::Shutdown => {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
-                        self.core.set_state(State::Shutdown);
+                        self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                     Message::EventHandlingError { event, error } => {
                         error!(
@@ -181,8 +184,8 @@ impl<'a, T: RaftType> Leader<'a, T> {
                                     "[Node({})] failed to handle TransitToLeader event, so transit to follower",
                                     self.core.node_id,
                                 );
-                                // Do not call set_state(), because we want keep prev_state unchanged
-                                self.core.set_only_state(State::Follower);
+                                // Do not set prev_state, because we want keep prev_state unchanged
+                                self.core.set_state(State::Follower, None);
                             }
                         }
                     }
@@ -195,7 +198,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                        self.core.set_state(State::Shutdown);
+                        self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                 },
             }

@@ -17,7 +17,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
 
     /// Note: No field will be changed If it returns error.
     #[inline]
-    fn init_with_members(&mut self, mut members: HashSet<T::NodeId>) -> Result<()> {
+    fn init_with_members(&mut self, mut members: HashSet<T::NodeId>, set_prev_state: Option<&mut bool>) -> Result<()> {
         if !members.contains(&self.core.node_id) {
             members.insert(self.core.node_id.clone());
         }
@@ -32,7 +32,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                 .save_hard_state(&hard_state)
                 .map_err(|e| Error::StorageError(e.to_string()))?;
             self.core.hard_state = hard_state;
-            self.core.set_state(State::Leader);
+            self.core.set_state(State::Leader, set_prev_state);
             info!(
                 "[Node({})] raft is initialized without other members, so directly transit to leader",
                 self.core.node_id
@@ -40,7 +40,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
         } else {
             // Do not to change to PreCandidate/Candidate,
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
-            self.core.set_state(State::Follower);
+            self.core.set_state(State::Follower, set_prev_state);
             info!(
                 "[Node({})] raft is initialized with {} members, so transit to follower",
                 self.core.node_id,
@@ -59,6 +59,9 @@ impl<'a, T: RaftType> Startup<'a, T> {
     }
 
     pub fn run(mut self) {
+        // Use set_prev_state to ensure prev_state can be set at most once.
+        let mut set_prev_state = Some(true);
+
         assert!(self.core.is_state(State::Startup));
         let _result = self.core.handle_event(Event::Startup);
 
@@ -69,7 +72,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                     "[Node({})] raft is shutting down caused by fatal storage error: {}",
                     self.core.node_id, e
                 );
-                self.core.set_state(State::Shutdown);
+                self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                 return;
             }
         };
@@ -89,7 +92,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                 Ok(msg) => {
                     match msg {
                         Message::Initialize { members, tx } => {
-                            let _ = tx.send(self.init_with_members(members));
+                            let _ = tx.send(self.init_with_members(members, set_prev_state.as_mut()));
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!("[Node({})] raft update options: {:?}", self.core.node_id, options);
@@ -98,7 +101,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         }
                         Message::Shutdown => {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
-                            self.core.set_state(State::Shutdown);
+                            self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
                         Message::EventHandlingError { event, error } => {
                             error!(
@@ -129,7 +132,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
-                        self.core.set_state(State::Shutdown);
+                        self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                 },
             }
