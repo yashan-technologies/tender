@@ -23,7 +23,7 @@ pub use crate::metrics::{Metrics, MetricsWatcher};
 pub use crate::options::{Options, OptionsBuilder};
 pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, Rpc, VoteRequest, VoteResponse};
 pub use crate::storage::{HardState, Storage};
-pub use crate::task::TaskSpawner;
+pub use crate::task::{TaskSpawner, Thread};
 
 use crate::core::RaftCore;
 use crate::metrics::metrics_channel;
@@ -33,7 +33,6 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
 /// Application specific data involved in voting.
 pub trait VoteFactor<T: RaftType> {
@@ -48,7 +47,9 @@ pub trait RaftType: 'static + Sized + Clone + Debug {
     type NodeId: Display + Debug + Eq + Hash + Clone + Send;
     /// Application specific data involved in voting.
     type VoteFactor: VoteFactor<Self> + Debug + Clone + Send;
-    /// Spawner for internal raft task.
+    /// Thread interfaces used by raft.
+    type Thread: Thread;
+    /// Spawner for internal short-time raft task.
     type TaskSpawner: TaskSpawner + Send + Sync;
     /// Storage interfaces used by raft.
     type Storage: Storage<Self> + Send;
@@ -58,11 +59,11 @@ pub trait RaftType: 'static + Sized + Clone + Debug {
 
 /// The Raft API.
 ///
-/// Applications building on top of Raft will use this to spawn a Raft task and interact with
-/// the spawned task.
+/// Applications building on top of Raft will use this to spawn a Raft main thread and interact with
+/// the spawned thread.
 ///
 pub struct Raft<T: RaftType> {
-    raft_handle: Option<JoinHandle<()>>,
+    raft_thread: Option<T::Thread>,
     msg_tx: Sender<Message<T>>,
     metrics_watcher: MetricsWatcher<T>,
 }
@@ -100,10 +101,10 @@ impl<T: RaftType> Raft<T> {
             event_handler,
             metrics_reporter,
         );
-        let raft_handle = raft_core.spawn()?;
+        let raft_thread = raft_core.spawn()?;
         Ok(Raft {
             msg_tx,
-            raft_handle: Some(raft_handle),
+            raft_thread: Some(raft_thread),
             metrics_watcher,
         })
     }
@@ -112,8 +113,8 @@ impl<T: RaftType> Raft<T> {
     fn shutdown(&mut self) -> Result<()> {
         // ignore closed channel error
         let _ = self.msg_tx.send(Message::Shutdown);
-        if let Some(handle) = self.raft_handle.take() {
-            let _ = handle.join();
+        if let Some(thread) = self.raft_thread.take() {
+            thread.join();
         }
         Ok(())
     }

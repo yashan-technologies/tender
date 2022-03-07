@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, RwLock};
 use tender::{
     Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, Options, Raft, RaftType,
-    Result, Rpc, State, Storage, TaskSpawner, VoteFactor, VoteRequest, VoteResponse,
+    Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
 };
 
 pub type MemRaft = Raft<MemRaftType>;
@@ -28,6 +28,7 @@ impl RaftType for MemRaftType {
     type GroupId = GroupId;
     type NodeId = NodeId;
     type VoteFactor = MemVoteFactor<Self>;
+    type Thread = RaftThread;
     type TaskSpawner = ThreadSpawner;
     type Storage = MemStore<Self>;
     type Rpc = MemRouter;
@@ -54,6 +55,27 @@ impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
     }
 }
 
+pub struct RaftThread(std::thread::JoinHandle<()>);
+
+impl Thread for RaftThread {
+    fn spawn<F>(name: String, f: F) -> Result<Self>
+    where
+        F: FnOnce(),
+        F: Send + 'static,
+    {
+        let mut builder = std::thread::Builder::new();
+        builder = builder.name(name);
+        let t = builder
+            .spawn(f)
+            .map_err(|e| Error::ThreadError(format!("failed to spawn thread: {}", e)))?;
+        Ok(RaftThread(t))
+    }
+
+    fn join(self) {
+        self.0.join().expect("failed to join thread")
+    }
+}
+
 pub struct ThreadSpawner;
 
 impl TaskSpawner for ThreadSpawner {
@@ -66,7 +88,7 @@ impl TaskSpawner for ThreadSpawner {
         builder = builder.name(name);
         let _ = builder
             .spawn(f)
-            .map_err(|e| Error::TaskError(format!("failed to spawn thread: {}", e)))?;
+            .map_err(|e| Error::TaskError(format!("failed to spawn task: {}", e)))?;
         Ok(())
     }
 }

@@ -9,11 +9,10 @@ use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse}
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
 use crate::wait_group::WaitGroup;
-use crate::{Event, EventHandler, Options, RaftType, VoteFactor};
+use crate::{Event, EventHandler, Options, RaftType, Thread, VoteFactor};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 mod candidate;
@@ -144,11 +143,8 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    pub fn spawn(self) -> Result<JoinHandle<()>> {
-        std::thread::Builder::new()
-            .name(String::from("raft-main"))
-            .spawn(move || self.main())
-            .map_err(|e| Error::TaskError(format!("failed to spawn raft main task: {}", e)))
+    pub fn spawn(self) -> Result<T::Thread> {
+        T::Thread::spawn(String::from("raft-main"), move || self.main())
     }
 
     fn main(mut self) {

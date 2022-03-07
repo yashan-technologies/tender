@@ -8,6 +8,8 @@ pub enum Error {
     #[error("failed to allocate {0} bytes memory")]
     MemAllocError(usize),
     #[error("{0}")]
+    ThreadError(String),
+    #[error("{0}")]
     TaskError(String),
     #[error("{0}")]
     StorageError(String),
