@@ -25,8 +25,9 @@ pub enum Message<T: RaftType> {
         tx: Sender<Result<()>>,
     },
     Shutdown,
-    EventHandlingError {
+    EventHandlingResult {
         event: Event<T>,
-        error: Error,
+        error: Option<Error>,
+        term: u64,
     },
 }

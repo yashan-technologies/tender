@@ -103,7 +103,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
         let mut set_prev_state = Some(true);
 
         assert!(self.core.is_state(State::Leader));
-        let result = self.core.handle_event(Event::TransitToLeader {
+        let result = self.core.spawn_event_handling_task(Event::TransitToLeader {
             members: self.target_members(),
             term: self.core.hard_state.current_term,
         });
@@ -173,19 +173,25 @@ impl<'a, T: RaftType> Leader<'a, T> {
                         info!("[Node({})] raft received shutdown message", self.core.node_id);
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
-                    Message::EventHandlingError { event, error } => {
-                        error!(
-                            "[Node({})] raft failed to handle event ({:?}): {}",
-                            self.core.node_id, event, error
-                        );
-                        if let Event::TransitToLeader { term, .. } = event {
-                            if self.core.hard_state.current_term == term {
-                                error!(
-                                    "[Node({})] failed to handle TransitToLeader event, so transit to follower",
-                                    self.core.node_id,
-                                );
-                                // Do not set prev_state, because we want keep prev_state unchanged
-                                self.core.set_state(State::Follower, None);
+                    Message::EventHandlingResult {
+                        event,
+                        error,
+                        term: _term,
+                    } => {
+                        if let Some(e) = error {
+                            error!(
+                                "[Node({})] raft failed to handle event ({:?}): {}",
+                                self.core.node_id, event, e
+                            );
+                            if let Event::TransitToLeader { term, .. } = event {
+                                if self.core.hard_state.current_term == term {
+                                    error!(
+                                        "[Node({})] failed to handle TransitToLeader event, so transit to follower",
+                                        self.core.node_id,
+                                    );
+                                    // Do not set prev_state, because we want keep prev_state unchanged
+                                    self.core.set_state(State::Follower, None);
+                                }
                             }
                         }
                     }

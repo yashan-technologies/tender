@@ -63,7 +63,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
         let mut set_prev_state = Some(true);
 
         assert!(self.core.is_state(State::Startup));
-        let _result = self.core.handle_event(Event::Startup);
+        let _result = self.core.spawn_event_handling_task(Event::Startup);
 
         let state = match self.core.storage.load_hard_state() {
             Ok(s) => s,
@@ -103,11 +103,13 @@ impl<'a, T: RaftType> Startup<'a, T> {
                             info!("[Node({})] raft received shutdown message", self.core.node_id);
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
-                        Message::EventHandlingError { event, error } => {
-                            error!(
-                                "[Node({})] raft failed to handle event ({:?}): {}",
-                                self.core.node_id, event, error
-                            );
+                        Message::EventHandlingResult { event, error, term } => {
+                            if let Some(e) = error {
+                                error!(
+                                    "[Node({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                    self.core.node_id, event, term, e
+                                );
+                            }
                         }
                         Message::Heartbeat { .. } => {
                             // ignore heart message in startup state

@@ -159,7 +159,7 @@ impl<T: RaftType> RaftCore<T> {
                 State::Candidate => Candidate::new(&mut self, false).run(),
                 State::Leader => Leader::new(&mut self).run(),
                 State::Shutdown => {
-                    let _result = self.handle_event(Event::Shutdown);
+                    let _result = self.spawn_event_handling_task(Event::Shutdown);
                     self.task_wait_group.wait();
                     info!("[Node({})] Raft has shutdown", self.node_id);
                     return;
@@ -334,7 +334,7 @@ impl<T: RaftType> RaftCore<T> {
                 }
             }
             self.current_leader = Some(msg.leader_id.clone());
-            let _result = self.handle_event(Event::ChangeLeader(msg.leader_id));
+            let _result = self.spawn_event_handling_task(Event::ChangeLeader(msg.leader_id));
             report_metrics = true;
         }
 
@@ -461,16 +461,15 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    fn handle_event(&self, event: Event<T>) -> Result<()> {
+    fn spawn_event_handling_task(&self, event: Event<T>) -> Result<()> {
         let handler = self.event_handler.clone();
         let ev = event.clone();
         let tx = self.msg_tx.clone();
+        let term = self.hard_state.current_term;
         let result = self.spawn_task("raft-event-handler", move || {
             let result = handler.handle_event(ev.clone());
-            if let Err(error) = result {
-                // ignore send error
-                let _ = tx.send(Message::EventHandlingError { event: ev, error });
-            }
+            let error = result.err();
+            let _ = tx.send(Message::EventHandlingResult { event: ev, error, term });
         });
         if let Err(ref e) = result {
             error!(
