@@ -5,12 +5,16 @@ use crossbeam_channel::RecvTimeoutError;
 
 pub struct Follower<'a, T: RaftType> {
     core: &'a mut RaftCore<T>,
+    transit_event_finished: bool,
 }
 
 impl<'a, T: RaftType> Follower<'a, T> {
     #[inline]
     pub fn new(core: &'a mut RaftCore<T>) -> Self {
-        Self { core }
+        Self {
+            core,
+            transit_event_finished: false,
+        }
     }
 
     pub fn run(mut self) {
@@ -79,18 +83,25 @@ impl<'a, T: RaftType> Follower<'a, T> {
                                 "[Node({})] raft failed to handle event ({:?}) in term {}: {} ",
                                 self.core.node_id, event, term, e
                             );
-                        } else {
+                        } else if matches!(event, Event::TransitToFollower { .. })
+                            && term == self.core.hard_state.current_term
+                        {
+                            self.transit_event_finished = true;
                         }
                     }
                 },
                 Err(e) => match e {
                     RecvTimeoutError::Timeout => {
-                        self.core.set_state(State::PreCandidate, set_prev_state.as_mut());
-                        self.core.current_leader = None;
-                        info!(
-                            "[Node({})] an election timeout is hit, need to transit to pre-candidate",
-                            self.core.node_id
-                        );
+                        if self.transit_event_finished {
+                            self.core.set_state(State::PreCandidate, set_prev_state.as_mut());
+                            self.core.current_leader = None;
+                            info!(
+                                "[Node({})] an election timeout is hit, need to transit to pre-candidate",
+                                self.core.node_id
+                            );
+                        } else {
+                            self.core.next_election_timeout = None;
+                        }
                     }
                     RecvTimeoutError::Disconnected => {
                         info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
