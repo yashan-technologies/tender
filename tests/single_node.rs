@@ -36,7 +36,7 @@ fn test_single_node() {
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(1, State::Startup, 0, None);
 
-    mem_router.init_node(1, HashSet::new()).unwrap();
+    mem_router.init_node(1, HashSet::new(), false).unwrap();
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(1, State::Leader, 1, Some(1));
 }

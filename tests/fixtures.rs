@@ -169,9 +169,9 @@ impl MemRouter {
         rt.insert(node_id, raft);
     }
 
-    pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>) -> Result<()> {
+    pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, force_leader: bool) -> Result<()> {
         let rt = self.routing_table.read().unwrap();
-        rt.get(&node_id).unwrap().initialize(members)
+        rt.get(&node_id).unwrap().initialize(members, force_leader)
     }
 
     pub fn remove_node(&self, node_id: NodeId) -> Option<MemRaft> {

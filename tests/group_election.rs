@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{init_log, MemRouter, MemVoteFactor, NodeId};
+use fixtures::{init_log, MemRouter, MemVoteFactor};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -17,8 +17,6 @@ use tender::State;
 /// - asserts that the group was able to come online, elect a leader and maintain a stable state.
 #[test]
 fn test_election() {
-    let state = |node: NodeId, leader: NodeId| if node == leader { State::Leader } else { State::Follower };
-
     init_log();
 
     let (node1, node2, node3) = (1001, 1002, 1003);
@@ -35,14 +33,13 @@ fn test_election() {
 
     let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
 
-    mem_router.init_node(node1, members.clone()).unwrap();
-    mem_router.init_node(node2, members.clone()).unwrap();
-    mem_router.init_node(node3, members).unwrap();
+    mem_router.init_node(node1, members.clone(), true).unwrap();
+    mem_router.init_node(node2, members.clone(), false).unwrap();
+    mem_router.init_node(node3, members, false).unwrap();
     sleep(Duration::from_secs(3));
-    let leader_id = mem_router.metrics(node1).current_leader.expect("no leader is elected");
-    mem_router.assert_node_state(node1, state(node1, leader_id), 1, Some(leader_id));
-    mem_router.assert_node_state(node2, state(node2, leader_id), 1, Some(leader_id));
-    mem_router.assert_node_state(node3, state(node3, leader_id), 1, Some(leader_id));
+    mem_router.assert_node_state(node1, State::Leader, 1, Some(node1));
+    mem_router.assert_node_state(node2, State::Follower, 1, Some(node1));
+    mem_router.assert_node_state(node3, State::Follower, 1, Some(node1));
 
     // remove node 1 to trigger a new election
     {
@@ -50,9 +47,8 @@ fn test_election() {
         let _ = mem_router.remove_node(node1);
     }
     sleep(Duration::from_secs(3));
-    let term = if leader_id == node2 { 1 } else { 2 };
-    mem_router.assert_node_state(node2, State::Leader, term, Some(node2));
-    mem_router.assert_node_state(node3, State::Follower, term, Some(node2));
+    mem_router.assert_node_state(node2, State::Leader, 2, Some(node2));
+    mem_router.assert_node_state(node3, State::Follower, 2, Some(node2));
 
     // remove node 2
     {
@@ -60,5 +56,5 @@ fn test_election() {
         let _ = mem_router.remove_node(node2);
     }
     sleep(Duration::from_secs(3));
-    mem_router.assert_node_state(node3, State::PreCandidate, term, None);
+    mem_router.assert_node_state(node3, State::PreCandidate, 2, None);
 }

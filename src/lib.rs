@@ -127,10 +127,14 @@ impl<T: RaftType> Raft<T> {
 
     /// Initialize this raft node.
     #[inline]
-    pub fn initialize(&self, members: HashSet<T::NodeId>) -> Result<()> {
+    pub fn initialize(&self, members: HashSet<T::NodeId>, force_leader: bool) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
-            .send(Message::Initialize { members, tx })
+            .send(Message::Initialize {
+                members,
+                force_leader,
+                tx,
+            })
             .map_err(|e| Error::ChannelError(format!("failed to send initialize to message channel: {}", e)))?;
         rx.recv()
             .map_err(|e| Error::ChannelError(format!("failed to receive initialize result from channel: {}", e)))

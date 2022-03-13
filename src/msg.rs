@@ -18,6 +18,7 @@ pub enum Message<T: RaftType> {
     VoteResponse(VoteResponse<T>),
     Initialize {
         members: HashSet<T::NodeId>,
+        force_leader: bool,
         tx: Sender<Result<()>>,
     },
     UpdateOptions {

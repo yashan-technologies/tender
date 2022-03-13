@@ -17,12 +17,17 @@ impl<'a, T: RaftType> Startup<'a, T> {
 
     /// Note: No field will be changed If it returns error.
     #[inline]
-    fn init_with_members(&mut self, mut members: HashSet<T::NodeId>, set_prev_state: Option<&mut bool>) -> Result<()> {
+    fn init_with_members(
+        &mut self,
+        mut members: HashSet<T::NodeId>,
+        force_leader: bool,
+        set_prev_state: Option<&mut bool>,
+    ) -> Result<()> {
         if !members.contains(&self.core.node_id) {
             members.insert(self.core.node_id.clone());
         }
 
-        if members.len() == 1 {
+        if force_leader || members.len() == 1 {
             let hard_state = HardState {
                 current_term: self.core.hard_state.current_term + 1,
                 voted_for: Some(self.core.node_id.clone()),
@@ -91,8 +96,12 @@ impl<'a, T: RaftType> Startup<'a, T> {
             match self.core.msg_rx.recv_deadline(election_timeout) {
                 Ok(msg) => {
                     match msg {
-                        Message::Initialize { members, tx } => {
-                            let _ = tx.send(self.init_with_members(members, set_prev_state.as_mut()));
+                        Message::Initialize {
+                            members,
+                            force_leader,
+                            tx,
+                        } => {
+                            let _ = tx.send(self.init_with_members(members, force_leader, set_prev_state.as_mut()));
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!("[Node({})] raft update options: {:?}", self.core.node_id, options);
