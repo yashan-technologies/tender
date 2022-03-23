@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{init_log, MemRouter, MemVoteFactor};
+use fixtures::{init_log, MemRouter, MemVoteFactor, NodeId};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -19,9 +19,12 @@ use tender::State;
 fn test_election() {
     init_log();
 
-    let (node1, node2, node3) = (1001, 1002, 1003);
+    let group_id = 1000;
+    let node1 = NodeId::new(group_id, 1001);
+    let node2 = NodeId::new(group_id, 1002);
+    let node3 = NodeId::new(group_id, 1003);
 
-    let mem_router = Arc::new(MemRouter::new(1000));
+    let mem_router = Arc::new(MemRouter::new(group_id));
     mem_router.new_node(node1, MemVoteFactor::new(1));
     mem_router.new_node(node2, MemVoteFactor::new(1));
     mem_router.new_node(node3, MemVoteFactor::new(0));

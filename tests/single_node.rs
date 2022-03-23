@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{init_log, MemRouter, MemVoteFactor};
+use fixtures::{init_log, MemRouter, MemVoteFactor, NodeId};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -20,10 +20,11 @@ fn test_single_node() {
     init_log();
 
     let mem_router = Arc::new(MemRouter::new(1));
-    mem_router.new_node(1, MemVoteFactor::new(0));
+    let node = NodeId::new(1, 1);
+    mem_router.new_node(node, MemVoteFactor::new(0));
 
     sleep(Duration::from_secs(1));
-    mem_router.assert_node_state(1, State::Startup, 0, None);
+    mem_router.assert_node_state(node, State::Startup, 0, None);
 
     let options = Options::builder()
         .election_timeout_min(1000)
@@ -31,12 +32,12 @@ fn test_single_node() {
         .heartbeat_interval(300)
         .build()
         .unwrap();
-    mem_router.update_options(1, options);
+    mem_router.update_options(node, options);
 
     sleep(Duration::from_secs(1));
-    mem_router.assert_node_state(1, State::Startup, 0, None);
+    mem_router.assert_node_state(node, State::Startup, 0, None);
 
-    mem_router.init_node(1, HashSet::new(), false).unwrap();
+    mem_router.init_node(node, HashSet::new(), false).unwrap();
     sleep(Duration::from_secs(1));
-    mem_router.assert_node_state(1, State::Leader, 1, Some(1));
+    mem_router.assert_node_state(node, State::Leader, 1, Some(node));
 }

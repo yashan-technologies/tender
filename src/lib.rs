@@ -34,6 +34,15 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::sync::Arc;
 
+/// Unique id used to identify the raft node.
+pub trait NodeId {
+    /// Unique id used to identify the raft group.
+    type GroupId: Display + PartialEq;
+
+    /// Get group id of this node.
+    fn group_id(&self) -> Self::GroupId;
+}
+
 /// Application specific data involved in voting.
 pub trait VoteFactor<T: RaftType> {
     fn vote(&self, other: &Self) -> bool;
@@ -41,10 +50,8 @@ pub trait VoteFactor<T: RaftType> {
 
 /// A trait defining application specific data type.
 pub trait RaftType: 'static + Sized + Clone + Debug {
-    /// Unique id used to identify the raft group.
-    type GroupId: Display + Debug + PartialEq + Clone + Send;
     /// Unique id used to identify the raft node.
-    type NodeId: Display + Debug + Eq + Hash + Clone + Send;
+    type NodeId: NodeId + Display + Debug + Eq + Hash + Clone + Send;
     /// Application specific data involved in voting.
     type VoteFactor: VoteFactor<Self> + Debug + Clone + Send;
     /// Thread interfaces used by raft.
@@ -80,7 +87,6 @@ impl<T: RaftType> Raft<T> {
     #[inline]
     pub fn start(
         options: Options,
-        group_id: T::GroupId,
         node_id: T::NodeId,
         task_spawner: Arc<T::TaskSpawner>,
         storage: T::Storage,
@@ -91,7 +97,6 @@ impl<T: RaftType> Raft<T> {
         let (metrics_reporter, metrics_watcher) = metrics_channel();
         let raft_core = RaftCore::new(
             options,
-            group_id,
             node_id,
             task_spawner,
             storage,

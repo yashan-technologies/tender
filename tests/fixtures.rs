@@ -6,13 +6,42 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, RwLock};
 use tender::{
-    Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, Options, Raft, RaftType,
-    Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
+    Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
+    Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
 };
 
 pub type MemRaft = Raft<MemRaftType>;
 pub type GroupId = u32;
-pub type NodeId = u32;
+pub type GroupNodeId = u32;
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
+pub struct NodeId {
+    group_id: GroupId,
+    group_node_id: u32,
+}
+
+impl NodeId {
+    pub fn new(group_id: GroupId, group_node_id: GroupNodeId) -> Self {
+        NodeId {
+            group_id,
+            group_node_id,
+        }
+    }
+}
+
+impl RaftNodeId for NodeId {
+    type GroupId = GroupId;
+
+    fn group_id(&self) -> Self::GroupId {
+        self.group_id
+    }
+}
+
+impl Display for NodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.group_id, self.group_node_id)
+    }
+}
 
 pub fn init_log() {
     let _ = env_logger::builder()
@@ -25,7 +54,6 @@ pub fn init_log() {
 pub struct MemRaftType;
 
 impl RaftType for MemRaftType {
-    type GroupId = GroupId;
     type NodeId = NodeId;
     type VoteFactor = MemVoteFactor<Self>;
     type Thread = RaftThread;
@@ -140,9 +168,10 @@ impl MemRouter {
     }
 
     pub fn new_node(self: &Arc<Self>, node_id: NodeId, vote_factor: MemVoteFactor<MemRaftType>) {
+        assert_eq!(self.group_id, node_id.group_id);
         {
             let rt = self.routing_table.read().unwrap();
-            assert!(!rt.contains_key(&node_id), "node {} is already existing", node_id);
+            assert!(!rt.contains_key(&node_id), "node({}) is already existing", node_id);
         }
 
         let options = Options::builder()
@@ -154,31 +183,25 @@ impl MemRouter {
         let task_spawner = Arc::new(ThreadSpawner);
         let mem_store = MemStore::new(HardState::default(), vote_factor);
         let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventHandler<MemRaftType>>;
-        let raft = MemRaft::start(
-            options,
-            self.group_id,
-            node_id,
-            task_spawner,
-            mem_store,
-            self.clone(),
-            event_listener,
-        )
-        .unwrap();
+        let raft = MemRaft::start(options, node_id, task_spawner, mem_store, self.clone(), event_listener).unwrap();
 
         let mut rt = self.routing_table.write().unwrap();
         rt.insert(node_id, raft);
     }
 
     pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, force_leader: bool) -> Result<()> {
+        assert_eq!(self.group_id, node_id.group_id);
         let rt = self.routing_table.read().unwrap();
         rt.get(&node_id).unwrap().initialize(members, force_leader)
     }
 
     pub fn remove_node(&self, node_id: NodeId) -> Option<MemRaft> {
+        assert_eq!(self.group_id, node_id.group_id);
         self.routing_table.write().unwrap().remove(&node_id)
     }
 
     pub fn update_options(&self, node_id: NodeId, options: Options) {
+        assert_eq!(self.group_id, node_id.group_id);
         let rt = self.routing_table.read().unwrap();
         rt.get(&node_id).unwrap().update_options(options).unwrap();
     }
@@ -192,6 +215,8 @@ impl MemRouter {
     }
 
     pub fn assert_node_state(&self, node_id: NodeId, state: State, current_term: u64, current_leader: Option<NodeId>) {
+        assert_eq!(self.group_id, node_id.group_id);
+
         let mut metrics_watcher = {
             let rt = self.routing_table.read().unwrap();
             rt.get(&node_id).unwrap().metrics_watcher()

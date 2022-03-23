@@ -2,12 +2,22 @@ use crate::RaftType;
 use std::error::Error;
 
 /// Raft persistent state.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct HardState<T: RaftType> {
     /// Current term of raft.
     pub current_term: u64,
     /// The id of the node voted for in `current_term`.
     pub voted_for: Option<T::NodeId>,
+}
+
+impl<T: RaftType> Default for HardState<T> {
+    #[inline]
+    fn default() -> Self {
+        HardState {
+            current_term: 0,
+            voted_for: None,
+        }
+    }
 }
 
 /// Storage interfaces used by raft.

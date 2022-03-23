@@ -194,7 +194,6 @@ impl<'a, T: RaftType> Candidate<'a, T> {
 
         for member in members.into_iter() {
             let req = VoteRequest {
-                group_id: self.core.group_id.clone(),
                 target_node_id: member.clone(),
                 candidate_id: self.core.node_id.clone(),
                 pre_vote: self.pre_vote,
@@ -222,7 +221,6 @@ impl<'a, T: RaftType> Candidate<'a, T> {
     }
 
     fn handle_vote_response(&mut self, msg: VoteResponse<T>, set_prev_state: Option<&mut bool>) -> Result<()> {
-        self.core.check_group(&msg.group_id)?;
         self.core.check_node(&msg.candidate_id)?;
 
         if self.core.vote_id != msg.vote_id {

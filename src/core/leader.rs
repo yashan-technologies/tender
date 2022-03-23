@@ -53,7 +53,6 @@ impl<'a, T: RaftType> Leader<'a, T> {
             .filter(|member| member != &self.core.node_id)
         {
             let req = HeartbeatRequest {
-                group_id: self.core.group_id.clone(),
                 target_node_id: member.clone(),
                 leader_id: self.core.node_id.clone(),
                 term: self.core.hard_state.current_term,
@@ -81,11 +80,8 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
     #[inline]
     fn handle_heartbeat_response(&mut self, resp: HeartbeatResponse<T>, set_prev_state: Option<&mut bool>) {
-        if self.core.group_id != resp.group_id {
-            return;
-        }
-
         if self.core.node_id != resp.node_id {
+            // If the heartbeat is not send by this node, ignore the response.
             return;
         }
 

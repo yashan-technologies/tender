@@ -4,7 +4,6 @@ use std::error::Error;
 /// Heartbeat request.
 #[derive(Debug)]
 pub struct HeartbeatRequest<T: RaftType> {
-    pub group_id: T::GroupId,
     pub target_node_id: T::NodeId,
     pub leader_id: T::NodeId,
     pub term: u64,
@@ -13,7 +12,6 @@ pub struct HeartbeatRequest<T: RaftType> {
 /// Heartbeat response.
 #[derive(Debug)]
 pub struct HeartbeatResponse<T: RaftType> {
-    pub group_id: T::GroupId,
     pub node_id: T::NodeId,
     pub term: u64,
 }
@@ -21,7 +19,6 @@ pub struct HeartbeatResponse<T: RaftType> {
 /// Vote request.
 #[derive(Debug)]
 pub struct VoteRequest<T: RaftType> {
-    pub group_id: T::GroupId,
     pub target_node_id: T::NodeId,
     pub candidate_id: T::NodeId,
     pub pre_vote: bool,
@@ -33,7 +30,6 @@ pub struct VoteRequest<T: RaftType> {
 /// Vote response.
 #[derive(Debug)]
 pub struct VoteResponse<T: RaftType> {
-    pub group_id: T::GroupId,
     pub node_id: T::NodeId,
     pub candidate_id: T::NodeId,
     pub pre_vote: bool,

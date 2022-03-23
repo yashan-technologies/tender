@@ -74,7 +74,6 @@ impl<T: RaftType> MemberConfig<T> {
 
 pub struct RaftCore<T: RaftType> {
     options: Options,
-    group_id: T::GroupId,
     node_id: T::NodeId,
     members: MemberConfig<T>,
 
@@ -106,7 +105,6 @@ impl<T: RaftType> RaftCore<T> {
     #[inline]
     pub(crate) fn new(
         options: Options,
-        group_id: T::GroupId,
         node_id: T::NodeId,
         task_spawner: Arc<T::TaskSpawner>,
         storage: T::Storage,
@@ -118,7 +116,6 @@ impl<T: RaftType> RaftCore<T> {
     ) -> Self {
         RaftCore {
             options,
-            group_id,
             node_id: node_id.clone(),
             members: MemberConfig::with_node(node_id),
             state: State::Startup,
@@ -227,18 +224,6 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    fn check_group(&self, group_id: &T::GroupId) -> Result<()> {
-        if self.group_id.ne(group_id) {
-            return Err(Error::InvalidTarget(format!(
-                "given group({}) is not the same as this raft group({})",
-                group_id, self.group_id
-            )));
-        } else {
-            Ok(())
-        }
-    }
-
-    #[inline]
     fn check_node(&self, node_id: &T::NodeId) -> Result<()> {
         if self.node_id.ne(node_id) {
             return Err(Error::InvalidTarget(format!(
@@ -296,7 +281,6 @@ impl<T: RaftType> RaftCore<T> {
         msg: HeartbeatRequest<T>,
         set_prev_state: Option<&mut bool>,
     ) -> Result<HeartbeatResponse<T>> {
-        self.check_group(&msg.group_id)?;
         self.check_node(&msg.target_node_id)?;
 
         if msg.term < self.hard_state.current_term {
@@ -305,7 +289,6 @@ impl<T: RaftType> RaftCore<T> {
                 self.node_id, msg.term, msg.leader_id, self.hard_state.current_term
             );
             return Ok(HeartbeatResponse {
-                group_id: self.group_id.clone(),
                 node_id: self.node_id.clone(),
                 term: self.hard_state.current_term,
             });
@@ -354,7 +337,6 @@ impl<T: RaftType> RaftCore<T> {
         }
 
         Ok(HeartbeatResponse {
-            group_id: self.group_id.clone(),
             node_id: self.node_id.clone(),
             term: self.hard_state.current_term,
         })
@@ -363,7 +345,6 @@ impl<T: RaftType> RaftCore<T> {
     #[inline]
     fn create_vote_response(&self, req: VoteRequest<T>, vote_granted: bool) -> VoteResponse<T> {
         VoteResponse {
-            group_id: self.group_id.clone(),
             node_id: self.node_id.clone(),
             candidate_id: req.candidate_id,
             pre_vote: req.pre_vote,
@@ -378,7 +359,6 @@ impl<T: RaftType> RaftCore<T> {
         msg: VoteRequest<T>,
         mut set_prev_state: Option<&mut bool>,
     ) -> Result<VoteResponse<T>> {
-        self.check_group(&msg.group_id)?;
         self.check_node(&msg.target_node_id)?;
 
         if msg.term < self.hard_state.current_term {
