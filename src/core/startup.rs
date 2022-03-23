@@ -38,10 +38,14 @@ impl<'a, T: RaftType> Startup<'a, T> {
                 .map_err(|e| Error::StorageError(e.to_string()))?;
             self.core.hard_state = hard_state;
             self.core.set_state(State::Leader, set_prev_state);
-            info!(
-                "[Node({})] raft is initialized without other members, so directly transit to leader",
-                self.core.node_id
-            );
+            if force_leader {
+                info!("[Node({})] raft is forced to be leader", self.core.node_id);
+            } else {
+                info!(
+                    "[Node({})] raft is initialized without other members, so directly transit to leader",
+                    self.core.node_id
+                );
+            }
         } else {
             // Do not to change to PreCandidate/Candidate,
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
