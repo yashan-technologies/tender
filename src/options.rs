@@ -24,6 +24,11 @@ pub struct Options {
     /// is performed for heartbeats, so the main item of concern here is network latency. This
     /// value is also used as the default timeout for sending heartbeats.
     heartbeat_interval: u64,
+
+    /// Indicates whether raft can be candidate.
+    ///
+    /// `true` means raft can not be candidate.
+    disable_candidate: bool,
 }
 
 impl Options {
@@ -34,6 +39,7 @@ impl Options {
             election_timeout_min: DEFAULT_ELECTION_TIMEOUT_MIN,
             election_timeout_max: DEFAULT_ELECTION_TIMEOUT_MAX,
             heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL,
+            disable_candidate: false,
         }
     }
 
@@ -53,6 +59,14 @@ impl Options {
     #[inline]
     pub const fn heartbeat_interval(&self) -> u64 {
         self.heartbeat_interval
+    }
+
+    /// Indicates whether raft can be candidate.
+    ///
+    /// `true` means raft can not be candidate.
+    #[inline]
+    pub const fn disable_candidate(&self) -> bool {
+        self.disable_candidate
     }
 
     /// Creates a new `Options` builder.
@@ -75,6 +89,7 @@ pub struct OptionsBuilder {
     election_timeout_min: Option<u64>,
     election_timeout_max: Option<u64>,
     heartbeat_interval: Option<u64>,
+    disable_candidate: Option<bool>,
 }
 
 impl OptionsBuilder {
@@ -85,6 +100,7 @@ impl OptionsBuilder {
             election_timeout_min: None,
             election_timeout_max: None,
             heartbeat_interval: None,
+            disable_candidate: None,
         }
     }
 
@@ -109,6 +125,15 @@ impl OptionsBuilder {
         self
     }
 
+    /// Indicates whether raft can be candidate.
+    ///
+    /// `true` means raft can not be candidate.
+    #[inline]
+    pub const fn disable_candidate(mut self, disable_candidate: bool) -> Self {
+        self.disable_candidate = Some(disable_candidate);
+        self
+    }
+
     /// Builds a new `Options`.
     #[inline]
     pub fn build(self) -> Result<Options> {
@@ -122,11 +147,13 @@ impl OptionsBuilder {
         }
 
         let heartbeat_interval = self.heartbeat_interval.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL);
+        let disable_candidate = self.disable_candidate.unwrap_or(false);
 
         Ok(Options {
             election_timeout_min,
             election_timeout_max,
             heartbeat_interval,
+            disable_candidate,
         })
     }
 }

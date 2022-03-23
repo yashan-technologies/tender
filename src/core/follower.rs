@@ -92,7 +92,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
                 },
                 Err(e) => match e {
                     RecvTimeoutError::Timeout => {
-                        if self.transit_event_finished {
+                        if self.transit_event_finished && !self.core.options.disable_candidate() {
                             self.core.set_state(State::PreCandidate, set_prev_state.as_mut());
                             self.core.current_leader = None;
                             info!(
@@ -101,6 +101,20 @@ impl<'a, T: RaftType> Follower<'a, T> {
                             );
                         } else {
                             self.core.next_election_timeout = None;
+
+                            if !self.transit_event_finished {
+                                debug!(
+                                    "[Node({})] an election timeout is hit, but TransitToFollower is not finished",
+                                    self.core.node_id
+                                );
+                            }
+
+                            if self.core.options.disable_candidate() {
+                                debug!(
+                                    "[Node({})] an election timeout is hit, but raft can not be candidate",
+                                    self.core.node_id
+                                );
+                            }
                         }
                     }
                     RecvTimeoutError::Disconnected => {
