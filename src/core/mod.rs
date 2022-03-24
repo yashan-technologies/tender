@@ -9,7 +9,7 @@ use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse}
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
 use crate::wait_group::WaitGroup;
-use crate::{Event, EventHandler, Options, RaftType, Thread, VoteFactor};
+use crate::{Event, EventHandler, Options, RaftType, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -343,14 +343,14 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     #[inline]
-    fn create_vote_response(&self, req: VoteRequest<T>, vote_granted: bool) -> VoteResponse<T> {
+    fn create_vote_response(&self, req: VoteRequest<T>, vote_result: VoteResult) -> VoteResponse<T> {
         VoteResponse {
             node_id: self.node_id.clone(),
             candidate_id: req.candidate_id,
             pre_vote: req.pre_vote,
             vote_id: req.vote_id,
             term: self.hard_state.current_term,
-            vote_granted,
+            vote_result,
         }
     }
 
@@ -366,7 +366,7 @@ impl<T: RaftType> RaftCore<T> {
                 "[Node({})] vote term({}) from candidate({}) is less than current term({})",
                 self.node_id, msg.term, msg.candidate_id, self.hard_state.current_term
             );
-            return Ok(self.create_vote_response(msg, false));
+            return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
         }
 
         // Do not respond to the request if we've received a heartbeat within the election timeout minimum.
@@ -378,7 +378,7 @@ impl<T: RaftType> RaftCore<T> {
                     "[Node({})] reject vote request received within election timeout minimum",
                     self.node_id
                 );
-                return Ok(self.create_vote_response(msg, false));
+                return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
             }
         }
 
@@ -403,20 +403,20 @@ impl<T: RaftType> RaftCore<T> {
             .storage
             .load_vote_factor()
             .map_err(|e| Error::StorageError(e.to_string()))?;
-        let candidate_is_granted = current_vote_factor.vote(&msg.factor);
-        if !candidate_is_granted {
+        let vote_result = current_vote_factor.vote(&msg.factor);
+        if !matches!(vote_result, VoteResult::Granted) {
             debug!(
-                "[Node({})] reject vote request as candidate({})'s vote factor is not granted",
-                self.node_id, msg.candidate_id
+                "[Node({})] reject vote request as candidate({})'s vote result is {:?}",
+                self.node_id, msg.candidate_id, vote_result
             );
-            return Ok(self.create_vote_response(msg, false));
+            return Ok(self.create_vote_response(msg, vote_result));
         }
 
         // If the request is a PreVote, then at this point we can respond
         // to the candidate telling them that we would vote for them.
         if msg.pre_vote {
             debug!("[Node({})] voted for pre-candidate({})", self.node_id, msg.candidate_id);
-            return Ok(self.create_vote_response(msg, true));
+            return Ok(self.create_vote_response(msg, VoteResult::Granted));
         }
 
         match &self.hard_state.voted_for {
@@ -428,14 +428,14 @@ impl<T: RaftType> RaftCore<T> {
                 self.save_hard_state()?;
                 self.report_metrics();
                 debug!("[Node({})] voted for candidate({})", self.node_id, msg.candidate_id);
-                Ok(self.create_vote_response(msg, true))
+                Ok(self.create_vote_response(msg, VoteResult::Granted))
             }
             Some(candidate_id) => {
                 debug!(
                     "[Node({})] reject vote request for candidate({}) because already voted for node({})",
                     self.node_id, msg.candidate_id, candidate_id
                 );
-                Ok(self.create_vote_response(msg, false))
+                Ok(self.create_vote_response(msg, VoteResult::NotGranted))
             }
         }
     }

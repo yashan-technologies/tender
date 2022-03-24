@@ -4,10 +4,12 @@ use log::LevelFilter;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use tender::{
     Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
     Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
+    VoteResult,
 };
 
 pub type MemRaft = Raft<MemRaftType>;
@@ -78,8 +80,12 @@ impl<T: RaftType> MemVoteFactor<T> {
 }
 
 impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
-    fn vote(&self, other: &Self) -> bool {
-        other.priority >= self.priority
+    fn vote(&self, other: &Self) -> VoteResult {
+        if other.priority >= self.priority {
+            VoteResult::Granted
+        } else {
+            VoteResult::Veto
+        }
     }
 }
 
@@ -157,6 +163,7 @@ impl<T: RaftType> Storage<T> for MemStore<T> {
 pub struct MemRouter {
     group_id: GroupId,
     routing_table: RwLock<HashMap<NodeId, Raft<MemRaftType>>>,
+    enable_veto: AtomicBool,
 }
 
 impl MemRouter {
@@ -164,7 +171,12 @@ impl MemRouter {
         MemRouter {
             group_id,
             routing_table: RwLock::new(HashMap::new()),
+            enable_veto: AtomicBool::new(false),
         }
+    }
+
+    pub fn enable_veto(&self) {
+        self.enable_veto.store(true, Ordering::Relaxed);
     }
 
     pub fn new_node(self: &Arc<Self>, node_id: NodeId, vote_factor: MemVoteFactor<MemRaftType>) {
@@ -175,9 +187,10 @@ impl MemRouter {
         }
 
         let options = Options::builder()
-            .election_timeout_min(1500)
-            .election_timeout_max(1600)
-            .heartbeat_interval(500)
+            .election_timeout_min(900)
+            .election_timeout_max(1000)
+            .heartbeat_interval(300)
+            .enable_veto(self.enable_veto.load(Ordering::Relaxed))
             .build()
             .unwrap();
         let task_spawner = Arc::new(ThreadSpawner);

@@ -43,9 +43,22 @@ pub trait NodeId {
     fn group_id(&self) -> Self::GroupId;
 }
 
+/// Vote result.
+#[derive(Debug, Copy, Clone)]
+pub enum VoteResult {
+    /// Affirmative vote.
+    Granted,
+    /// Dissenting vote.
+    NotGranted,
+    /// If veto option is enabled, it means the candidate should withdraw from the election.
+    /// Otherwise, it equivalent to `NotGranted`.
+    Veto,
+}
+
 /// Application specific data involved in voting.
 pub trait VoteFactor<T: RaftType> {
-    fn vote(&self, other: &Self) -> bool;
+    /// Votes for `other`.
+    fn vote(&self, other: &Self) -> VoteResult;
 }
 
 /// A trait defining application specific data type.

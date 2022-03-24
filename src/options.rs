@@ -29,6 +29,11 @@ pub struct Options {
     ///
     /// `true` means raft can not be candidate.
     disable_candidate: bool,
+
+    /// Indicates whether enable veto.
+    ///
+    /// `true` means enable veto.
+    enable_veto: bool,
 }
 
 impl Options {
@@ -40,6 +45,7 @@ impl Options {
             election_timeout_max: DEFAULT_ELECTION_TIMEOUT_MAX,
             heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL,
             disable_candidate: false,
+            enable_veto: false,
         }
     }
 
@@ -69,6 +75,14 @@ impl Options {
         self.disable_candidate
     }
 
+    /// Indicates whether enable veto.
+    ///
+    /// `true` means enable veto.
+    #[inline]
+    pub const fn enable_veto(&self) -> bool {
+        self.enable_veto
+    }
+
     /// Creates a new `Options` builder.
     #[inline]
     pub const fn builder() -> OptionsBuilder {
@@ -90,6 +104,7 @@ pub struct OptionsBuilder {
     election_timeout_max: Option<u64>,
     heartbeat_interval: Option<u64>,
     disable_candidate: Option<bool>,
+    enable_veto: Option<bool>,
 }
 
 impl OptionsBuilder {
@@ -101,6 +116,7 @@ impl OptionsBuilder {
             election_timeout_max: None,
             heartbeat_interval: None,
             disable_candidate: None,
+            enable_veto: None,
         }
     }
 
@@ -134,6 +150,15 @@ impl OptionsBuilder {
         self
     }
 
+    /// Indicates whether enable veto.
+    ///
+    /// `true` means enable veto.
+    #[inline]
+    pub const fn enable_veto(mut self, enable_veto: bool) -> Self {
+        self.enable_veto = Some(enable_veto);
+        self
+    }
+
     /// Builds a new `Options`.
     #[inline]
     pub fn build(self) -> Result<Options> {
@@ -148,12 +173,14 @@ impl OptionsBuilder {
 
         let heartbeat_interval = self.heartbeat_interval.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL);
         let disable_candidate = self.disable_candidate.unwrap_or(false);
+        let enable_veto = self.enable_veto.unwrap_or(false);
 
         Ok(Options {
             election_timeout_min,
             election_timeout_max,
             heartbeat_interval,
             disable_candidate,
+            enable_veto,
         })
     }
 }

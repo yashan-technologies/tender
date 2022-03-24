@@ -71,7 +71,10 @@ impl<'a, T: RaftType> Leader<'a, T> {
                         let _ = tx.send(Message::HeartbeatResponse(resp));
                     }
                     Err(e) => {
-                        warn!("[Node({})] failed to send vote request to {}: {}", node_id, member, e);
+                        warn!(
+                            "[Node({})] failed to send heartbeat request to {}: {}",
+                            node_id, member, e
+                        );
                     }
                 }
             });
@@ -124,6 +127,9 @@ impl<'a, T: RaftType> Leader<'a, T> {
             "[Node({})] start the leader loop with term({})",
             self.core.node_id, self.core.hard_state.current_term
         );
+
+        // Send the first heartbeat
+        self.spawn_parallel_heartbeat();
 
         loop {
             if !self.core.is_state(State::Leader) {

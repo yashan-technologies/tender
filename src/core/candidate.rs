@@ -3,12 +3,16 @@ use crate::error::Result;
 use crate::msg::Message;
 use crate::rpc::{Rpc, VoteRequest, VoteResponse};
 use crate::storage::Storage;
-use crate::{Event, RaftType};
+use crate::{Event, RaftType, VoteResult};
 use crossbeam_channel::RecvTimeoutError;
 
 pub struct Candidate<'a, T: RaftType> {
     core: &'a mut RaftCore<T>,
     pre_vote: bool,
+    // The number of vote request send to peer nodes.
+    votes_request_count: usize,
+    // The number of vote response received from peer nodes.
+    votes_response_count: usize,
     // The number of votes needed from the old (current) member config in order to become the raft leader.
     votes_needed_old: usize,
     // The number of votes which have been granted by peer nodes of the old (current) member config.
@@ -25,6 +29,8 @@ impl<'a, T: RaftType> Candidate<'a, T> {
         Self {
             core,
             pre_vote,
+            votes_request_count: 0,
+            votes_response_count: 0,
             votes_granted_old: 0,
             votes_needed_new: 0,
             votes_needed_old: 0,
@@ -62,6 +68,8 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                 return;
             }
 
+            self.votes_request_count = 0;
+            self.votes_response_count = 0;
             self.votes_needed_old = self.core.members.members.len() / 2 + 1;
             self.votes_granted_old = 1; // vote for ourselves
             if let Some(members) = &self.core.members.members_after_consensus {
@@ -147,7 +155,11 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                     },
                     Err(e) => match e {
                         RecvTimeoutError::Timeout => {
-                            // This election has timed-out. Break to outer loop, which starts a new vote.
+                            if self.core.options.enable_veto() {
+                                self.handle_vote_result(set_prev_state.as_mut());
+                            }
+                            // This election has timed-out.
+                            // Break to outer loop, which starts a new vote or revert to follower.
                             break;
                         }
                         RecvTimeoutError::Disconnected => {
@@ -206,6 +218,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             let tx = self.core.msg_tx.clone();
             let node_id = self.core.node_id.clone();
 
+            self.votes_request_count += 1;
             let _ = self.core.spawn_task("raft-vote", move || match rpc.vote(req) {
                 Ok(resp) => {
                     let _ = tx.send(Message::VoteResponse(resp));
@@ -231,53 +244,89 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             return Ok(());
         }
 
+        self.votes_response_count += 1;
+
         // If peer's term is greater than current term, revert to follower state.
         if msg.term > self.core.hard_state.current_term {
             self.core.update_current_term(msg.term, None)?;
-            self.core.current_leader = None;
-            self.core.set_state(State::Follower, set_prev_state);
-            self.core.report_metrics();
-            info!(
-                "[Node({})] revert to follower due to greater term({}) observed in vote response then current term({})",
-                self.core.node_id, msg.term, self.core.hard_state.current_term
-            );
+            self.revert_to_follower(Ok(msg.term), set_prev_state);
             return Ok(());
         }
 
-        if msg.vote_granted {
-            if self.core.members.contains(&msg.node_id) {
-                self.votes_granted_old += 1;
-            }
-            if self
-                .core
-                .members
-                .members_after_consensus
-                .as_ref()
-                .map(|m| m.contains(&msg.node_id))
-                .unwrap_or(false)
-            {
-                self.votes_granted_new += 1;
-            }
-
-            if self.votes_granted_old >= self.votes_needed_old && self.votes_granted_new >= self.votes_needed_new {
-                if self.pre_vote {
-                    info!(
-                        "[Node({})] minimum number of pre-votes have been received, so transit to candidate",
-                        self.core.node_id
-                    );
-                    self.core.set_state(State::Candidate, set_prev_state);
-                } else {
-                    info!(
-                        "[Node({})] minimum number of votes have been received, so transit to leader",
-                        self.core.node_id
-                    );
-                    self.core.set_state(State::Leader, set_prev_state);
-                }
-                self.core.report_metrics();
+        match msg.vote_result {
+            VoteResult::NotGranted => {
                 return Ok(());
+            }
+            VoteResult::Veto => {
+                if self.core.options.enable_veto() {
+                    self.revert_to_follower(Err(msg.vote_result), set_prev_state);
+                }
+                return Ok(());
+            }
+            VoteResult::Granted => {
+                if self.core.members.contains(&msg.node_id) {
+                    self.votes_granted_old += 1;
+                }
+                if self
+                    .core
+                    .members
+                    .members_after_consensus
+                    .as_ref()
+                    .map(|m| m.contains(&msg.node_id))
+                    .unwrap_or(false)
+                {
+                    self.votes_granted_new += 1;
+                }
+
+                if (self.votes_request_count == self.votes_response_count) || !self.core.options.enable_veto() {
+                    self.handle_vote_result(set_prev_state);
+                }
             }
         }
 
         Ok(())
+    }
+
+    fn handle_vote_result(&mut self, set_prev_state: Option<&mut bool>) {
+        if self.votes_granted_old >= self.votes_needed_old && self.votes_granted_new >= self.votes_needed_new {
+            debug!(
+                "[Node({})] votes request count({}), response count({})",
+                self.core.node_id, self.votes_request_count, self.votes_response_count,
+            );
+            if self.pre_vote {
+                info!(
+                    "[Node({})] minimum number of pre-votes have been granted, so transit to candidate",
+                    self.core.node_id
+                );
+                self.core.set_state(State::Candidate, set_prev_state);
+            } else {
+                info!(
+                    "[Node({})] minimum number of votes have been granted, so transit to leader",
+                    self.core.node_id
+                );
+                self.core.set_state(State::Leader, set_prev_state);
+            }
+            self.core.report_metrics();
+        }
+    }
+
+    fn revert_to_follower(&mut self, reason: std::result::Result<u64, VoteResult>, set_prev_state: Option<&mut bool>) {
+        self.core.current_leader = None;
+        self.core.set_state(State::Follower, set_prev_state);
+        self.core.report_metrics();
+        match reason {
+            Ok(term) => {
+                info!(
+            "[Node({})] revert to follower due to greater term({}) observed in vote response than current term({})",
+            self.core.node_id, term, self.core.hard_state.current_term
+                );
+            }
+            Err(vote_result) => {
+                info!(
+                    "[Node({})] revert to follower due to vote result {:?}",
+                    self.core.node_id, vote_result
+                );
+            }
+        }
     }
 }
