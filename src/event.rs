@@ -1,12 +1,11 @@
 use crate::error::Result;
 use crate::{RaftType, State};
-use std::collections::HashSet;
 
 /// The event of the raft node.
 #[derive(Clone, Debug)]
 pub enum Event<T: RaftType> {
     Startup,
-    TransitToLeader { members: HashSet<T::NodeId>, term: u64 },
+    TransitToLeader { term: u64 },
     TransitToFollower { term: u64, prev_state: State },
     TransitToPreCandidate,
     TransitToCandidate,
