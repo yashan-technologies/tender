@@ -39,11 +39,14 @@ impl<'a, T: RaftType> Startup<'a, T> {
             self.core.hard_state = hard_state;
             self.core.set_state(State::Leader, set_prev_state);
             if force_leader {
-                info!("[Node({})] raft is forced to be leader", self.core.node_id);
+                info!(
+                    "[Node({})][Term({})] raft is forced to be leader",
+                    self.core.node_id, self.core.hard_state.current_term
+                );
             } else {
                 info!(
-                    "[Node({})] raft is initialized without other members, so directly transit to leader",
-                    self.core.node_id
+                    "[Node({})][Term({})] raft is initialized without other members, so directly transit to leader",
+                    self.core.node_id, self.core.hard_state.current_term
                 );
             }
         } else {
@@ -51,8 +54,9 @@ impl<'a, T: RaftType> Startup<'a, T> {
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
             self.core.set_state(State::Follower, set_prev_state);
             info!(
-                "[Node({})] raft is initialized with {} members, so transit to follower",
+                "[Node({})][Term({})] raft is initialized with {} members, so transit to follower",
                 self.core.node_id,
+                self.core.hard_state.current_term,
                 members.len()
             );
         }
@@ -78,8 +82,8 @@ impl<'a, T: RaftType> Startup<'a, T> {
             Ok(s) => s,
             Err(e) => {
                 error!(
-                    "[Node({})] raft is shutting down caused by fatal storage error: {}",
-                    self.core.node_id, e
+                    "[Node({})][Term({})] raft is shutting down caused by fatal storage error: {}",
+                    self.core.node_id, self.core.hard_state.current_term, e
                 );
                 self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                 return;
@@ -88,7 +92,10 @@ impl<'a, T: RaftType> Startup<'a, T> {
         self.core.set_hard_state(state);
         self.core.report_metrics();
 
-        info!("[Node({})] start the startup loop", self.core.node_id);
+        info!(
+            "[Node({})][Term({})] start the startup loop",
+            self.core.node_id, self.core.hard_state.current_term
+        );
 
         loop {
             if !self.core.is_state(State::Startup) {
@@ -108,19 +115,25 @@ impl<'a, T: RaftType> Startup<'a, T> {
                             let _ = tx.send(self.init_with_members(members, force_leader, set_prev_state.as_mut()));
                         }
                         Message::UpdateOptions { options, tx } => {
-                            info!("[Node({})] raft update options: {:?}", self.core.node_id, options);
+                            info!(
+                                "[Node({})][Term({})] raft update options: {:?}",
+                                self.core.node_id, self.core.hard_state.current_term, options
+                            );
                             self.core.update_options(options);
                             let _ = tx.send(Ok(()));
                         }
                         Message::Shutdown => {
-                            info!("[Node({})] raft received shutdown message", self.core.node_id);
+                            info!(
+                                "[Node({})][Term({})] raft received shutdown message",
+                                self.core.node_id, self.core.hard_state.current_term
+                            );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
                         Message::EventHandlingResult { event, error, term } => {
                             if let Some(e) = error {
                                 error!(
-                                    "[Node({})] raft failed to handle event ({:?}) in term {}: {} ",
-                                    self.core.node_id, event, term, e
+                                    "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                    self.core.node_id, self.core.hard_state.current_term, event, term, e
                                 );
                             }
                         }
@@ -146,7 +159,10 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         continue;
                     }
                     RecvTimeoutError::Disconnected => {
-                        info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
+                        info!(
+                            "[Node({})][Term({})] the raft message channel is disconnected",
+                            self.core.node_id, self.core.hard_state.current_term
+                        );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                 },

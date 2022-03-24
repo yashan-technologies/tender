@@ -145,7 +145,10 @@ impl<T: RaftType> RaftCore<T> {
     }
 
     fn main(mut self) {
-        info!("[Node({})] start raft main task", self.node_id);
+        info!(
+            "[Node({})][Term({})] start raft main task",
+            self.node_id, self.hard_state.current_term
+        );
         self.set_state(State::Startup, None);
 
         loop {
@@ -158,7 +161,10 @@ impl<T: RaftType> RaftCore<T> {
                 State::Shutdown => {
                     let _result = self.spawn_event_handling_task(Event::Shutdown);
                     self.task_wait_group.wait();
-                    info!("[Node({})] Raft has shutdown", self.node_id);
+                    info!(
+                        "[Node({})][Term({})] Raft has shutdown",
+                        self.node_id, self.hard_state.current_term
+                    );
                     return;
                 }
             }
@@ -284,13 +290,14 @@ impl<T: RaftType> RaftCore<T> {
         self.check_node(&msg.target_node_id)?;
 
         if msg.term < self.hard_state.current_term {
+            let current_term = self.hard_state.current_term;
             debug!(
-                "[Node({})] heartbeat term({}) from leader({}) is less than current term({})",
-                self.node_id, msg.term, msg.leader_id, self.hard_state.current_term
+                "[Node({})][Term({})] heartbeat term({}) from leader({}) is less than current term({})",
+                self.node_id, current_term, msg.term, msg.leader_id, current_term
             );
             return Ok(HeartbeatResponse {
                 node_id: self.node_id.clone(),
-                term: self.hard_state.current_term,
+                term: current_term,
             });
         }
 
@@ -307,12 +314,15 @@ impl<T: RaftType> RaftCore<T> {
         if self.current_leader.as_ref() != Some(&msg.leader_id) {
             match self.current_leader.as_ref() {
                 None => {
-                    info!("[Node({})] change leader to {}", self.node_id, msg.leader_id);
+                    info!(
+                        "[Node({})][Term({})] change leader to {}",
+                        self.node_id, self.hard_state.current_term, msg.leader_id
+                    );
                 }
                 Some(old_leader) => {
                     info!(
-                        "[Node({})] change leader from {} to {}",
-                        self.node_id, old_leader, msg.leader_id
+                        "[Node({})][Term({})] change leader from {} to {}",
+                        self.node_id, self.hard_state.current_term, old_leader, msg.leader_id
                     );
                 }
             }
@@ -324,8 +334,9 @@ impl<T: RaftType> RaftCore<T> {
         // transition to follower state if needed
         if !self.is_state(State::Follower) {
             info!(
-                "[Node({})] raft received valid heartbeat in {:?} state, so transit to follower",
+                "[Node({})][Term({})] raft received valid heartbeat in {:?} state, so transit to follower",
                 self.node_id,
+                self.hard_state.current_term,
                 self.state()
             );
             self.set_state(State::Follower, set_prev_state);
@@ -363,8 +374,8 @@ impl<T: RaftType> RaftCore<T> {
 
         if msg.term < self.hard_state.current_term {
             debug!(
-                "[Node({})] vote term({}) from candidate({}) is less than current term({})",
-                self.node_id, msg.term, msg.candidate_id, self.hard_state.current_term
+                "[Node({})][Term({})] vote term({}) from candidate({}) is less than current term({})",
+                self.node_id, self.hard_state.current_term, msg.term, msg.candidate_id, self.hard_state.current_term
             );
             return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
         }
@@ -375,8 +386,8 @@ impl<T: RaftType> RaftCore<T> {
             let delta = now.duration_since(instant);
             if (delta.as_millis() as u64) <= self.options.election_timeout_min() {
                 debug!(
-                    "[Node({})] reject vote request received within election timeout minimum",
-                    self.node_id
+                    "[Node({})][Term({})] reject vote request received within election timeout minimum",
+                    self.node_id, self.hard_state.current_term
                 );
                 return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
             }
@@ -387,8 +398,8 @@ impl<T: RaftType> RaftCore<T> {
         // do vote checking after this.
         if msg.term > self.hard_state.current_term {
             info!(
-                "[Node({})] vote request term({}) is greater than current term({}), so transit to follower",
-                self.node_id, msg.term, self.hard_state.current_term
+                "[Node({})][Term({})] vote request term({}) is greater than current term({}), so transit to follower",
+                self.node_id, self.hard_state.current_term, msg.term, self.hard_state.current_term
             );
             self.update_current_term(msg.term, None)?;
             self.update_next_election_timeout(false);
@@ -406,8 +417,8 @@ impl<T: RaftType> RaftCore<T> {
         let vote_result = current_vote_factor.vote(&msg.factor);
         if !matches!(vote_result, VoteResult::Granted) {
             debug!(
-                "[Node({})] reject vote request as candidate({})'s vote result is {:?}",
-                self.node_id, msg.candidate_id, vote_result
+                "[Node({})][Term({})] reject vote request as candidate({})'s vote result is {:?}",
+                self.node_id, self.hard_state.current_term, msg.candidate_id, vote_result
             );
             return Ok(self.create_vote_response(msg, vote_result));
         }
@@ -415,7 +426,10 @@ impl<T: RaftType> RaftCore<T> {
         // If the request is a PreVote, then at this point we can respond
         // to the candidate telling them that we would vote for them.
         if msg.pre_vote {
-            debug!("[Node({})] voted for pre-candidate({})", self.node_id, msg.candidate_id);
+            debug!(
+                "[Node({})][Term({})] voted for pre-candidate({})",
+                self.node_id, self.hard_state.current_term, msg.candidate_id
+            );
             return Ok(self.create_vote_response(msg, VoteResult::Granted));
         }
 
@@ -427,13 +441,16 @@ impl<T: RaftType> RaftCore<T> {
                 self.update_next_election_timeout(false);
                 self.save_hard_state()?;
                 self.report_metrics();
-                debug!("[Node({})] voted for candidate({})", self.node_id, msg.candidate_id);
+                debug!(
+                    "[Node({})][Term({})] voted for candidate({})",
+                    self.node_id, self.hard_state.current_term, msg.candidate_id
+                );
                 Ok(self.create_vote_response(msg, VoteResult::Granted))
             }
             Some(candidate_id) => {
                 debug!(
-                    "[Node({})] reject vote request for candidate({}) because already voted for node({})",
-                    self.node_id, msg.candidate_id, candidate_id
+                    "[Node({})][Term({})] reject vote request for candidate({}) because already voted for node({})",
+                    self.node_id, self.hard_state.current_term, msg.candidate_id, candidate_id
                 );
                 Ok(self.create_vote_response(msg, VoteResult::NotGranted))
             }
@@ -453,8 +470,8 @@ impl<T: RaftType> RaftCore<T> {
         });
         if let Err(ref e) = result {
             error!(
-                "[Node({})] failed to spawn task to for event ({:?}): {}",
-                self.node_id, event, e
+                "[Node({})][Term({})] failed to spawn task to for event ({:?}): {}",
+                self.node_id, self.hard_state.current_term, event, e
             );
         }
         result
