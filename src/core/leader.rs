@@ -3,7 +3,6 @@ use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
 use crate::{Event, HeartbeatResponse, RaftType, Rpc};
 use crossbeam_channel::RecvTimeoutError;
-use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 pub struct Leader<'a, T: RaftType> {
@@ -18,13 +17,6 @@ impl<'a, T: RaftType> Leader<'a, T> {
             core,
             next_heartbeat_timeout: None,
         }
-    }
-
-    #[inline]
-    fn target_members(&self) -> HashSet<T::NodeId> {
-        let mut members = self.core.members.all_members();
-        members.remove(&self.core.node_id);
-        members
     }
 
     #[inline]
@@ -103,7 +95,6 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
         assert!(self.core.is_state(State::Leader));
         let result = self.core.spawn_event_handling_task(Event::TransitToLeader {
-            members: self.target_members(),
             term: self.core.hard_state.current_term,
         });
         if result.is_err() {
@@ -185,7 +176,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                                 "[Node({})] raft failed to handle event ({:?}): {}",
                                 self.core.node_id, event, e
                             );
-                            if let Event::TransitToLeader { term, .. } = event {
+                            if let Event::TransitToLeader { term } = event {
                                 if self.core.hard_state.current_term == term {
                                     error!(
                                         "[Node({})] failed to handle TransitToLeader event, so transit to follower",
