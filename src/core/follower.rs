@@ -29,7 +29,10 @@ impl<'a, T: RaftType> Follower<'a, T> {
         });
         self.core.report_metrics();
 
-        info!("[Node({})] start the follower loop", self.core.node_id);
+        info!(
+            "[Node({})][Term({})] start the follower loop",
+            self.core.node_id, self.core.hard_state.current_term
+        );
 
         loop {
             if !self.core.is_state(State::Follower) {
@@ -41,13 +44,18 @@ impl<'a, T: RaftType> Follower<'a, T> {
             match self.core.msg_rx.recv_deadline(election_timeout) {
                 Ok(msg) => match msg {
                     Message::Heartbeat { req, tx } => {
-                        trace!("[Node({})] received heartbeat: {:?}", self.core.node_id, req);
+                        trace!(
+                            "[Node({})][Term({})] received heartbeat: {:?}",
+                            self.core.node_id,
+                            self.core.hard_state.current_term,
+                            req
+                        );
 
                         let result = self.core.handle_heartbeat(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!(
-                                "[Node({})] failed to handle heartbeat request: {}",
-                                self.core.node_id, e
+                                "[Node({})][Term({})] failed to handle heartbeat request: {}",
+                                self.core.node_id, self.core.hard_state.current_term, e
                             );
                         }
                         let _ = tx.send(result);
@@ -58,7 +66,10 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     Message::VoteRequest { req, tx } => {
                         let result = self.core.handle_vote_request(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
-                            debug!("[Node({})] failed to handle vote request: {}", self.core.node_id, e);
+                            debug!(
+                                "[Node({})][Term({})] failed to handle vote request: {}",
+                                self.core.node_id, self.core.hard_state.current_term, e
+                            );
                         }
                         let _ = tx.send(result);
                     }
@@ -69,19 +80,25 @@ impl<'a, T: RaftType> Follower<'a, T> {
                         self.core.reject_init_with_members(tx);
                     }
                     Message::UpdateOptions { options, tx } => {
-                        info!("[Node({})] raft update options: {:?}", self.core.node_id, options);
+                        info!(
+                            "[Node({})][Term({})] raft update options: {:?}",
+                            self.core.node_id, self.core.hard_state.current_term, options
+                        );
                         self.core.update_options(options);
                         let _ = tx.send(Ok(()));
                     }
                     Message::Shutdown => {
-                        info!("[Node({})] raft received shutdown message", self.core.node_id);
+                        info!(
+                            "[Node({})][Term({})] raft received shutdown message",
+                            self.core.node_id, self.core.hard_state.current_term
+                        );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                     Message::EventHandlingResult { event, error, term } => {
                         if let Some(e) = error {
                             error!(
-                                "[Node({})] raft failed to handle event ({:?}) in term {}: {} ",
-                                self.core.node_id, event, term, e
+                                "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                self.core.node_id, self.core.hard_state.current_term, event, term, e
                             );
                         } else if matches!(event, Event::TransitToFollower { .. })
                             && term == self.core.hard_state.current_term
@@ -96,15 +113,18 @@ impl<'a, T: RaftType> Follower<'a, T> {
                             self.core.set_state(State::PreCandidate, set_prev_state.as_mut());
                             self.core.current_leader = None;
                             info!(
-                                "[Node({})] an election timeout is hit, need to transit to pre-candidate",
-                                self.core.node_id
+                                "[Node({})][Term({})] an election timeout is hit, need to transit to pre-candidate",
+                                self.core.node_id, self.core.hard_state.current_term
                             );
                         } else {
                             self.core.next_election_timeout = None;
                         }
                     }
                     RecvTimeoutError::Disconnected => {
-                        info!("[Node({})] the raft message channel is disconnected", self.core.node_id);
+                        info!(
+                            "[Node({})][Term({})] the raft message channel is disconnected",
+                            self.core.node_id, self.core.hard_state.current_term
+                        );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
                 },

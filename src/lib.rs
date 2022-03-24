@@ -57,7 +57,7 @@ impl VoteResult {
     /// Indicates whether the vote has been granted.
     #[inline]
     pub fn is_granted(self) -> bool {
-        matches!(self, VoteResult::Granted)
+        self == VoteResult::Granted
     }
 }
 
