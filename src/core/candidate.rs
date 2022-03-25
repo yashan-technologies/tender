@@ -242,10 +242,10 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             let req = VoteRequest {
                 target_node_id: member.clone(),
                 candidate_id: self.core.node_id.clone(),
-                pre_vote: self.pre_vote,
                 vote_id,
                 term: current_term,
                 factor: vote_factor.clone(),
+                pre_vote: self.pre_vote,
             };
 
             let rpc = self.core.rpc.clone();

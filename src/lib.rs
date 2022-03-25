@@ -45,14 +45,15 @@ pub trait NodeId {
 
 /// Vote result.
 #[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub enum VoteResult {
-    /// Affirmative vote.
-    Granted,
     /// Dissenting vote.
-    NotGranted,
+    NotGranted = 0,
+    /// Affirmative vote.
+    Granted = 1,
     /// If veto option is enabled, it means the candidate should withdraw from the election.
     /// Otherwise, it equivalent to `NotGranted`.
-    Veto,
+    Veto = 2,
 }
 
 /// Application specific data involved in voting.

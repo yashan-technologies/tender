@@ -23,12 +23,12 @@ mod startup;
 /// The state of the raft node.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum State {
+    Shutdown,
     Startup,
     Follower,
     PreCandidate,
     Candidate,
     Leader,
-    Shutdown,
 }
 
 pub struct MemberConfig<T: RaftType> {
@@ -118,8 +118,8 @@ impl<T: RaftType> RaftCore<T> {
             options,
             node_id: node_id.clone(),
             members: MemberConfig::with_node(node_id),
-            state: State::Startup,
-            prev_state: State::Startup,
+            state: State::Shutdown,
+            prev_state: State::Shutdown,
             hard_state: HardState {
                 current_term: 0,
                 voted_for: None,
@@ -358,9 +358,9 @@ impl<T: RaftType> RaftCore<T> {
         VoteResponse {
             node_id: self.node_id.clone(),
             candidate_id: req.candidate_id,
-            pre_vote: req.pre_vote,
             vote_id: req.vote_id,
             term: self.hard_state.current_term,
+            pre_vote: req.pre_vote,
             vote_result,
         }
     }
