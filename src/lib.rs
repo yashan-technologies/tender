@@ -43,9 +43,28 @@ pub trait NodeId {
     fn group_id(&self) -> Self::GroupId;
 }
 
+/// Vote result.
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[repr(u8)]
+pub enum VoteResult {
+    /// Dissenting vote.
+    NotGranted = 0,
+    /// Affirmative vote.
+    Granted = 1,
+}
+
+impl VoteResult {
+    /// Indicates whether the vote has been granted.
+    #[inline]
+    pub fn is_granted(self) -> bool {
+        matches!(self, VoteResult::Granted)
+    }
+}
+
 /// Application specific data involved in voting.
 pub trait VoteFactor<T: RaftType> {
-    fn vote(&self, other: &Self) -> bool;
+    /// Votes according to the voting factor.
+    fn vote(&self, other: &Self) -> VoteResult;
 }
 
 /// A trait defining application specific data type.

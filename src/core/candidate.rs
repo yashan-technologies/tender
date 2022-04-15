@@ -196,10 +196,10 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             let req = VoteRequest {
                 target_node_id: member.clone(),
                 candidate_id: self.core.node_id.clone(),
-                pre_vote: self.pre_vote,
                 vote_id,
                 term: self.core.hard_state.current_term,
                 factor: vote_factor.clone(),
+                pre_vote: self.pre_vote,
             };
 
             let rpc = self.core.rpc.clone();
@@ -244,7 +244,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             return Ok(());
         }
 
-        if msg.vote_granted {
+        if msg.vote_result.is_granted() {
             if self.core.members.contains(&msg.node_id) {
                 self.votes_granted_old += 1;
             }

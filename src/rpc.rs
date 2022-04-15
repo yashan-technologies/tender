@@ -1,4 +1,4 @@
-use crate::RaftType;
+use crate::{RaftType, VoteResult};
 use std::error::Error;
 
 /// Heartbeat request.
@@ -21,10 +21,10 @@ pub struct HeartbeatResponse<T: RaftType> {
 pub struct VoteRequest<T: RaftType> {
     pub target_node_id: T::NodeId,
     pub candidate_id: T::NodeId,
-    pub pre_vote: bool,
     pub vote_id: u64,
     pub term: u64,
     pub factor: T::VoteFactor,
+    pub pre_vote: bool,
 }
 
 /// Vote response.
@@ -32,10 +32,10 @@ pub struct VoteRequest<T: RaftType> {
 pub struct VoteResponse<T: RaftType> {
     pub node_id: T::NodeId,
     pub candidate_id: T::NodeId,
-    pub pre_vote: bool,
     pub vote_id: u64,
     pub term: u64,
-    pub vote_granted: bool,
+    pub pre_vote: bool,
+    pub vote_result: VoteResult,
 }
 
 /// RPC interfaces used by raft.

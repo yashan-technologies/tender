@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use tender::{
     Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
     Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
+    VoteResult,
 };
 
 pub type MemRaft = Raft<MemRaftType>;
@@ -78,8 +79,12 @@ impl<T: RaftType> MemVoteFactor<T> {
 }
 
 impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
-    fn vote(&self, other: &Self) -> bool {
-        other.priority >= self.priority
+    fn vote(&self, other: &Self) -> VoteResult {
+        if other.priority >= self.priority {
+            VoteResult::Granted
+        } else {
+            VoteResult::NotGranted
+        }
     }
 }
 
