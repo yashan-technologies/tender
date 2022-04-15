@@ -22,13 +22,14 @@ mod startup;
 
 /// The state of the raft node.
 #[derive(Debug, PartialEq, Copy, Clone)]
+#[repr(u8)]
 pub enum State {
-    Startup,
-    Follower,
-    PreCandidate,
-    Candidate,
-    Leader,
-    Shutdown,
+    Shutdown = 0,
+    Startup = 1,
+    Follower = 2,
+    PreCandidate = 3,
+    Candidate = 4,
+    Leader = 5,
 }
 
 pub struct MemberConfig<T: RaftType> {
