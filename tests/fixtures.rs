@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
 use log::LevelFilter;
+use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use tender::{
     Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
     Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
@@ -144,11 +145,11 @@ impl<T: RaftType> Storage<T> for MemStore<T> {
     type Err = std::convert::Infallible;
 
     fn load_hard_state(&self) -> std::result::Result<HardState<T>, Self::Err> {
-        Ok(self.hard_state.lock().unwrap().clone())
+        Ok(self.hard_state.lock().clone())
     }
 
     fn save_hard_state(&self, hard_state: &HardState<T>) -> std::result::Result<(), Self::Err> {
-        let mut s = self.hard_state.lock().unwrap();
+        let mut s = self.hard_state.lock();
         *s = hard_state.clone();
         Ok(())
     }
@@ -175,7 +176,7 @@ impl MemRouter {
     pub fn new_node(self: &Arc<Self>, node_id: NodeId, vote_factor: MemVoteFactor<MemRaftType>) {
         assert_eq!(self.group_id, node_id.group_id);
         {
-            let rt = self.routing_table.read().unwrap();
+            let rt = self.routing_table.read();
             assert!(!rt.contains_key(&node_id), "node({}) is already existing", node_id);
         }
 
@@ -190,30 +191,30 @@ impl MemRouter {
         let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventHandler<MemRaftType>>;
         let raft = MemRaft::start(options, node_id, task_spawner, mem_store, self.clone(), event_listener).unwrap();
 
-        let mut rt = self.routing_table.write().unwrap();
+        let mut rt = self.routing_table.write();
         rt.insert(node_id, raft);
     }
 
     pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, force_leader: bool) -> Result<()> {
         assert_eq!(self.group_id, node_id.group_id);
-        let rt = self.routing_table.read().unwrap();
+        let rt = self.routing_table.read();
         rt.get(&node_id).unwrap().initialize(members, force_leader)
     }
 
     pub fn remove_node(&self, node_id: NodeId) -> Option<MemRaft> {
         assert_eq!(self.group_id, node_id.group_id);
-        self.routing_table.write().unwrap().remove(&node_id)
+        self.routing_table.write().remove(&node_id)
     }
 
     pub fn update_options(&self, node_id: NodeId, options: Options) {
         assert_eq!(self.group_id, node_id.group_id);
-        let rt = self.routing_table.read().unwrap();
+        let rt = self.routing_table.read();
         rt.get(&node_id).unwrap().update_options(options).unwrap();
     }
 
     pub fn metrics(&self, node_id: NodeId) -> Metrics<MemRaftType> {
         let mut metrics_watcher = {
-            let rt = self.routing_table.read().unwrap();
+            let rt = self.routing_table.read();
             rt.get(&node_id).unwrap().metrics_watcher()
         };
         metrics_watcher.metrics()
@@ -223,7 +224,7 @@ impl MemRouter {
         assert_eq!(self.group_id, node_id.group_id);
 
         let mut metrics_watcher = {
-            let rt = self.routing_table.read().unwrap();
+            let rt = self.routing_table.read();
             rt.get(&node_id).unwrap().metrics_watcher()
         };
         let metrics = metrics_watcher.metrics();
@@ -252,7 +253,7 @@ impl Rpc<MemRaftType> for MemRouter {
         &self,
         msg: HeartbeatRequest<MemRaftType>,
     ) -> std::result::Result<HeartbeatResponse<MemRaftType>, RpcError> {
-        let rt = self.routing_table.read().unwrap();
+        let rt = self.routing_table.read();
         let node = match rt.get(&msg.target_node_id) {
             None => {
                 return Err(RpcError(format!(
@@ -268,7 +269,7 @@ impl Rpc<MemRaftType> for MemRouter {
     }
 
     fn vote(&self, msg: VoteRequest<MemRaftType>) -> std::result::Result<VoteResponse<MemRaftType>, RpcError> {
-        let rt = self.routing_table.read().unwrap();
+        let rt = self.routing_table.read();
         let node = match rt.get(&msg.target_node_id) {
             None => {
                 return Err(RpcError(format!(
