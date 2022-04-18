@@ -32,7 +32,7 @@ fn test_single_node() {
         .heartbeat_interval(300)
         .build()
         .unwrap();
-    mem_router.update_options(node, options);
+    mem_router.update_node_options(node, options);
 
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(node, State::Startup, 0, None);

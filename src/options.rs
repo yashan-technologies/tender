@@ -8,7 +8,7 @@ const DEFAULT_ELECTION_TIMEOUT_MAX: u64 = 3000;
 const DEFAULT_HEARTBEAT_INTERVAL: u64 = 500;
 
 /// The raft runtime configurations.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Options {
     /// The minimum election timeout in milliseconds.
     election_timeout_min: u64,
@@ -24,6 +24,26 @@ pub struct Options {
     /// is performed for heartbeats, so the main item of concern here is network latency. This
     /// value is also used as the default timeout for sending heartbeats.
     heartbeat_interval: u64,
+
+    /// The minimum number of votes that a node has to obtain in order to be the leader.
+    quorum: Quorum,
+}
+
+/// The minimum number of votes that a node has to obtain in order to be the leader.
+#[derive(Debug, Copy, Clone)]
+pub enum Quorum {
+    /// A node has to obtain (N/2 + 1) votes in order to be the leader.
+    Major,
+    /// A node has to obtain `Any` votes in order to be the leader.
+    /// When `Any` < (N/2 + 1), it will be forced equivalent to `Major`.
+    Any(u32),
+}
+
+impl Default for Quorum {
+    #[inline]
+    fn default() -> Self {
+        Quorum::Major
+    }
 }
 
 impl Options {
@@ -34,6 +54,7 @@ impl Options {
             election_timeout_min: DEFAULT_ELECTION_TIMEOUT_MIN,
             election_timeout_max: DEFAULT_ELECTION_TIMEOUT_MAX,
             heartbeat_interval: DEFAULT_HEARTBEAT_INTERVAL,
+            quorum: Quorum::Major,
         }
     }
 
@@ -53,6 +74,12 @@ impl Options {
     #[inline]
     pub const fn heartbeat_interval(&self) -> u64 {
         self.heartbeat_interval
+    }
+
+    /// The minimum number of votes that a node has to obtain in order to be the leader.
+    #[inline]
+    pub const fn quorum(&self) -> Quorum {
+        self.quorum
     }
 
     /// Creates a new `Options` builder.
@@ -75,6 +102,7 @@ pub struct OptionsBuilder {
     election_timeout_min: Option<u64>,
     election_timeout_max: Option<u64>,
     heartbeat_interval: Option<u64>,
+    quorum: Option<Quorum>,
 }
 
 impl OptionsBuilder {
@@ -85,6 +113,7 @@ impl OptionsBuilder {
             election_timeout_min: None,
             election_timeout_max: None,
             heartbeat_interval: None,
+            quorum: None,
         }
     }
 
@@ -109,24 +138,40 @@ impl OptionsBuilder {
         self
     }
 
+    /// The minimum number of votes that a node has to obtain in order to be the leader.
+    #[inline]
+    pub const fn quorum(mut self, quorum: Quorum) -> Self {
+        self.quorum = Some(quorum);
+        self
+    }
+
     /// Builds a new `Options`.
     #[inline]
     pub fn build(self) -> Result<Options> {
         let election_timeout_min = self.election_timeout_min.unwrap_or(DEFAULT_ELECTION_TIMEOUT_MIN);
         let election_timeout_max = self.election_timeout_max.unwrap_or(DEFAULT_ELECTION_TIMEOUT_MAX);
         if election_timeout_min >= election_timeout_max {
-            return Err(Error::InvalidElectionTimeout {
-                min: election_timeout_min,
-                max: election_timeout_max,
-            });
+            return Err(Error::InvalidOptions(format!(
+                "election timeout min({}) & max({}) are invalid: max must be greater than min",
+                election_timeout_min, election_timeout_max
+            )));
         }
 
         let heartbeat_interval = self.heartbeat_interval.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL);
+        if election_timeout_min <= heartbeat_interval {
+            return Err(Error::InvalidOptions(format!(
+                "election_timeout_min({}) must be greater than heartbeat_interval({})",
+                election_timeout_min, heartbeat_interval
+            )));
+        }
+
+        let quorum = self.quorum.unwrap_or(Quorum::Major);
 
         Ok(Options {
             election_timeout_min,
             election_timeout_max,
             heartbeat_interval,
+            quorum,
         })
     }
 }

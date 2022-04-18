@@ -20,7 +20,7 @@ pub use crate::core::State;
 pub use crate::error::{Error, Result};
 pub use crate::event::{Event, EventHandler};
 pub use crate::metrics::{Metrics, MetricsWatcher};
-pub use crate::options::{Options, OptionsBuilder};
+pub use crate::options::{Options, OptionsBuilder, Quorum};
 pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, Rpc, VoteRequest, VoteResponse};
 pub use crate::storage::{HardState, Storage};
 pub use crate::task::{TaskSpawner, Thread};

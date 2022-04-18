@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tender::{
     Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
-    Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
+    Quorum, Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
     VoteResult,
 };
 
@@ -162,6 +162,7 @@ impl<T: RaftType> Storage<T> for MemStore<T> {
 #[derive(Default)]
 pub struct MemRouter {
     group_id: GroupId,
+    quorum: RwLock<Quorum>,
     routing_table: RwLock<HashMap<NodeId, Raft<MemRaftType>>>,
 }
 
@@ -169,6 +170,15 @@ impl MemRouter {
     pub fn new(group_id: GroupId) -> Self {
         MemRouter {
             group_id,
+            quorum: RwLock::new(Quorum::Major),
+            routing_table: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn with_quorum(group_id: GroupId, quorum: Quorum) -> Self {
+        MemRouter {
+            group_id,
+            quorum: RwLock::new(quorum),
             routing_table: RwLock::new(HashMap::new()),
         }
     }
@@ -184,6 +194,7 @@ impl MemRouter {
             .election_timeout_min(1500)
             .election_timeout_max(1600)
             .heartbeat_interval(500)
+            .quorum(*self.quorum.read())
             .build()
             .unwrap();
         let task_spawner = Arc::new(ThreadSpawner);
@@ -206,9 +217,24 @@ impl MemRouter {
         self.routing_table.write().remove(&node_id)
     }
 
-    pub fn update_options(&self, node_id: NodeId, options: Options) {
+    pub fn update_quorum(&self, quorum: Quorum) {
+        let options = Options::builder()
+            .election_timeout_min(1500)
+            .election_timeout_max(1600)
+            .heartbeat_interval(500)
+            .quorum(quorum)
+            .build()
+            .unwrap();
+        *self.quorum.write() = quorum;
+        let rt = self.routing_table.write();
+        for (_node_id, raft) in rt.iter() {
+            raft.update_options(options.clone()).unwrap();
+        }
+    }
+
+    pub fn update_node_options(&self, node_id: NodeId, options: Options) {
         assert_eq!(self.group_id, node_id.group_id);
-        let rt = self.routing_table.read();
+        let rt = self.routing_table.write();
         rt.get(&node_id).unwrap().update_options(options).unwrap();
     }
 

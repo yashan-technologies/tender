@@ -3,7 +3,7 @@ use crate::error::Result;
 use crate::msg::Message;
 use crate::rpc::{Rpc, VoteRequest, VoteResponse};
 use crate::storage::Storage;
-use crate::{Event, RaftType};
+use crate::{Event, Quorum, RaftType};
 use crossbeam_channel::RecvTimeoutError;
 
 pub struct Candidate<'a, T: RaftType> {
@@ -68,12 +68,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                 return;
             }
 
-            self.votes_needed_old = self.core.members.members.len() / 2 + 1;
-            self.votes_granted_old = 1; // vote for ourselves
-            if let Some(members) = &self.core.members.members_after_consensus {
-                self.votes_needed_new = members.len() / 2 + 1;
-                self.votes_granted_new = 1; // vote for ourselves
-            }
+            self.calculate_needed_votes();
 
             self.core.update_next_election_timeout(false);
             if !self.pre_vote {
@@ -184,6 +179,27 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                     },
                 }
             }
+        }
+    }
+
+    fn calculate_needed_votes(&mut self) {
+        let major_old = self.core.members.members.len() / 2 + 1;
+        self.votes_needed_old = match self.core.options.quorum() {
+            Quorum::Major => major_old,
+            Quorum::Any(n) => (n as usize).max(major_old).min(self.core.members.members.len()),
+        };
+        self.votes_granted_old = 1; // vote for ourselves
+
+        if let Some(members) = &self.core.members.members_after_consensus {
+            let major_new = members.len() / 2 + 1;
+            self.votes_needed_new = match self.core.options.quorum() {
+                Quorum::Major => major_new,
+                Quorum::Any(n) => (n as usize).max(major_new).min(members.len()),
+            };
+            self.votes_granted_new = 1; // vote for ourselves
+        } else {
+            self.votes_needed_new = 0;
+            self.votes_granted_new = 0;
         }
     }
 

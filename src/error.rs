@@ -19,8 +19,8 @@ pub enum Error {
     InvalidTarget(String),
     #[error("the requested action is not allowed due to the raft node's current state: {0}")]
     NotAllowed(String),
-    #[error("election timeout min({min}) & max({max}) are invalid: max must be greater than min")]
-    InvalidElectionTimeout { min: u64, max: u64 },
+    #[error("{0}")]
+    InvalidOptions(String),
     #[error("{0}")]
     ChannelError(String),
     #[error("{0}")]
