@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 /// Message processed by raft main thread.
 pub enum Message<T: RaftType> {
-    Heartbeat {
+    HeartbeatRequest {
         req: HeartbeatRequest<T>,
         tx: Sender<Result<HeartbeatResponse<T>>>,
     },

@@ -135,7 +135,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
 
             match self.core.msg_rx.recv_deadline(heartbeat_timeout) {
                 Ok(msg) => match msg {
-                    Message::Heartbeat { req, tx } => {
+                    Message::HeartbeatRequest { req, tx } => {
                         let result = self.core.handle_heartbeat(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!(

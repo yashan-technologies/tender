@@ -137,7 +137,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                                 );
                             }
                         }
-                        Message::Heartbeat { .. } => {
+                        Message::HeartbeatRequest { .. } => {
                             // ignore heart message in startup state
                             // tx is dropped here, so user will receive a error
                         }

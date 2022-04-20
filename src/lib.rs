@@ -171,7 +171,7 @@ impl<T: RaftType> Raft<T> {
     pub fn heartbeat(&self, req: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
-            .send(Message::Heartbeat { req, tx })
+            .send(Message::HeartbeatRequest { req, tx })
             .map_err(|e| Error::ChannelError(format!("failed to send heartbeat request to message channel: {}", e)))?;
         let resp = rx
             .recv()

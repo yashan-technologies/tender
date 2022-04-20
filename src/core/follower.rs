@@ -43,7 +43,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
 
             match self.core.msg_rx.recv_deadline(election_timeout) {
                 Ok(msg) => match msg {
-                    Message::Heartbeat { req, tx } => {
+                    Message::HeartbeatRequest { req, tx } => {
                         trace!(
                             "[Node({})][Term({})] received heartbeat: {:?}",
                             self.core.node_id,
