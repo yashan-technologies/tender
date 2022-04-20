@@ -290,7 +290,7 @@ impl Rpc<MemRaftType> for MemRouter {
             Some(n) => n,
         };
 
-        let resp = node.heartbeat(msg).map_err(|e| RpcError(e.to_string()))?;
+        let resp = node.submit_heartbeat(msg).map_err(|e| RpcError(e.to_string()))?;
         Ok(resp)
     }
 
@@ -306,7 +306,7 @@ impl Rpc<MemRaftType> for MemRouter {
             Some(n) => n,
         };
 
-        let resp = node.vote(msg).map_err(|e| RpcError(e.to_string()))?;
+        let resp = node.submit_vote(msg).map_err(|e| RpcError(e.to_string()))?;
         Ok(resp)
     }
 }

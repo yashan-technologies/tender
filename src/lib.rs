@@ -168,7 +168,7 @@ impl<T: RaftType> Raft<T> {
 
     /// Submits a `HeartbeatRequest` RPC to this raft node.
     #[inline]
-    pub fn heartbeat(&self, req: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
+    pub fn submit_heartbeat(&self, req: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::HeartbeatRequest { req, tx })
@@ -182,7 +182,7 @@ impl<T: RaftType> Raft<T> {
 
     /// Submits a `VoteRequest` RPC to this raft node.
     #[inline]
-    pub fn vote(&self, req: VoteRequest<T>) -> Result<VoteResponse<T>> {
+    pub fn submit_vote(&self, req: VoteRequest<T>) -> Result<VoteResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::VoteRequest { req, tx })
