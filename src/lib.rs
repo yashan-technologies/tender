@@ -25,7 +25,7 @@ pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, Rpc, VoteRequest, Vote
 pub use crate::storage::{HardState, Storage};
 pub use crate::task::{TaskSpawner, Thread};
 
-use crate::core::RaftCore;
+use crate::core::ElectionCore;
 use crate::metrics::metrics_channel;
 use crate::msg::Message;
 use crossbeam_channel::Sender;
@@ -34,9 +34,9 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::sync::Arc;
 
-/// Unique id used to identify the raft node.
+/// Unique id used to identify the node.
 pub trait NodeId {
-    /// Unique id used to identify the raft group.
+    /// Unique id used to identify the group.
     type GroupId: Display + PartialEq;
 
     /// Get group id of this node.
@@ -62,47 +62,47 @@ impl VoteResult {
 }
 
 /// Application specific data involved in voting.
-pub trait VoteFactor<T: RaftType> {
+pub trait VoteFactor<T: ElectionType> {
     /// Votes according to the voting factor.
     fn vote(&self, other: &Self) -> VoteResult;
 }
 
-/// A trait defining application specific data type.
-pub trait RaftType: 'static + Sized + Clone + Debug {
-    /// Unique id used to identify the raft node.
+/// A trait defining application specific data type for election.
+pub trait ElectionType: 'static + Sized + Clone + Debug {
+    /// Unique id used to identify the node.
     type NodeId: NodeId + Display + Debug + Eq + Hash + Clone + Send;
     /// Application specific data involved in voting.
     type VoteFactor: VoteFactor<Self> + Debug + Clone + Send;
-    /// Thread interfaces used by raft.
+    /// Thread interfaces used by election.
     type Thread: Thread;
-    /// Spawner for internal short-time raft task.
+    /// Spawner for internal short-time election task.
     type TaskSpawner: TaskSpawner + Send + Sync;
-    /// Storage interfaces used by raft.
+    /// Storage interfaces used by election.
     type Storage: Storage<Self> + Send;
-    /// RPC interfaces used by raft.
+    /// RPC interfaces used by election.
     type Rpc: Rpc<Self> + Send + Sync;
 }
 
-/// The Raft API.
+/// The election API.
 ///
-/// Applications building on top of Raft will use this to spawn a Raft main thread and interact with
+/// Applications building on top of `Tender` will use this to spawn a election main thread and interact with
 /// the spawned thread.
 ///
-pub struct Raft<T: RaftType> {
-    raft_thread: Option<T::Thread>,
+pub struct Election<T: ElectionType> {
+    main_thread: Option<T::Thread>,
     msg_tx: Sender<Message<T>>,
     metrics_watcher: MetricsWatcher<T>,
 }
 
-impl<T: RaftType> Drop for Raft<T> {
+impl<T: ElectionType> Drop for Election<T> {
     #[inline]
     fn drop(&mut self) {
         let _ = self.shutdown();
     }
 }
 
-impl<T: RaftType> Raft<T> {
-    /// Starts a new raft thread.
+impl<T: ElectionType> Election<T> {
+    /// Starts a new election thread.
     #[inline]
     pub fn start(
         options: Options,
@@ -114,7 +114,7 @@ impl<T: RaftType> Raft<T> {
     ) -> Result<Self> {
         let (msg_tx, msg_rx) = crossbeam_channel::bounded(64);
         let (metrics_reporter, metrics_watcher) = metrics_channel();
-        let raft_core = RaftCore::new(
+        let election_core = ElectionCore::new(
             options,
             node_id,
             task_spawner,
@@ -125,10 +125,10 @@ impl<T: RaftType> Raft<T> {
             event_handler,
             metrics_reporter,
         );
-        let raft_thread = raft_core.spawn()?;
-        Ok(Raft {
+        let election_thread = election_core.spawn()?;
+        Ok(Election {
             msg_tx,
-            raft_thread: Some(raft_thread),
+            main_thread: Some(election_thread),
             metrics_watcher,
         })
     }
@@ -137,19 +137,19 @@ impl<T: RaftType> Raft<T> {
     fn shutdown(&mut self) -> Result<()> {
         // ignore closed channel error
         let _ = self.msg_tx.send(Message::Shutdown);
-        if let Some(thread) = self.raft_thread.take() {
+        if let Some(thread) = self.main_thread.take() {
             thread.join();
         }
         Ok(())
     }
 
-    /// Gets a metrics watcher of this raft node.
+    /// Gets a metrics watcher of this node.
     #[inline]
     pub fn metrics_watcher(&self) -> MetricsWatcher<T> {
         self.metrics_watcher.clone()
     }
 
-    /// Initialize this raft node.
+    /// Initialize this node.
     #[inline]
     pub fn initialize(&self, members: HashSet<T::NodeId>, force_leader: bool) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -166,7 +166,7 @@ impl<T: RaftType> Raft<T> {
         Ok(())
     }
 
-    /// Submits a `HeartbeatRequest` RPC to this raft node.
+    /// Submits a `HeartbeatRequest` RPC to this node.
     #[inline]
     pub fn submit_heartbeat(&self, req: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -180,7 +180,7 @@ impl<T: RaftType> Raft<T> {
         Ok(resp)
     }
 
-    /// Submits a `VoteRequest` RPC to this raft node.
+    /// Submits a `VoteRequest` RPC to this node.
     #[inline]
     pub fn submit_vote(&self, req: VoteRequest<T>) -> Result<VoteResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -194,7 +194,7 @@ impl<T: RaftType> Raft<T> {
         Ok(resp)
     }
 
-    /// Updates `Options` of this raft node.
+    /// Updates `Options` of this node.
     #[inline]
     pub fn update_options(&self, options: Options) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);

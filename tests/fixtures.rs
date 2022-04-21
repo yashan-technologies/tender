@@ -7,12 +7,12 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tender::{
-    Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics, NodeId as RaftNodeId, Options,
-    Quorum, Raft, RaftType, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor, VoteRequest, VoteResponse,
-    VoteResult,
+    Election, ElectionType, Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics,
+    NodeId as ElectionNodeId, Options, Quorum, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor,
+    VoteRequest, VoteResponse, VoteResult,
 };
 
-pub type MemRaft = Raft<MemRaftType>;
+pub type MemElection = Election<MemElectionType>;
 pub type GroupId = u32;
 pub type GroupNodeId = u32;
 
@@ -31,7 +31,7 @@ impl NodeId {
     }
 }
 
-impl RaftNodeId for NodeId {
+impl ElectionNodeId for NodeId {
     type GroupId = GroupId;
 
     fn group_id(&self) -> Self::GroupId {
@@ -53,24 +53,24 @@ pub fn init_log() {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct MemRaftType;
+pub struct MemElectionType;
 
-impl RaftType for MemRaftType {
+impl ElectionType for MemElectionType {
     type NodeId = NodeId;
     type VoteFactor = MemVoteFactor<Self>;
-    type Thread = RaftThread;
+    type Thread = ElectionThread;
     type TaskSpawner = ThreadSpawner;
     type Storage = MemStore<Self>;
     type Rpc = MemRouter;
 }
 
 #[derive(Debug, Clone)]
-pub struct MemVoteFactor<T: RaftType> {
+pub struct MemVoteFactor<T: ElectionType> {
     pub priority: i32,
     _marker: PhantomData<T>,
 }
 
-impl<T: RaftType> MemVoteFactor<T> {
+impl<T: ElectionType> MemVoteFactor<T> {
     pub fn new(priority: i32) -> Self {
         MemVoteFactor {
             priority,
@@ -79,7 +79,7 @@ impl<T: RaftType> MemVoteFactor<T> {
     }
 }
 
-impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
+impl<T: ElectionType> VoteFactor<T> for MemVoteFactor<T> {
     fn vote(&self, other: &Self) -> VoteResult {
         if other.priority >= self.priority {
             VoteResult::Granted
@@ -89,9 +89,9 @@ impl<T: RaftType> VoteFactor<T> for MemVoteFactor<T> {
     }
 }
 
-pub struct RaftThread(std::thread::JoinHandle<()>);
+pub struct ElectionThread(std::thread::JoinHandle<()>);
 
-impl Thread for RaftThread {
+impl Thread for ElectionThread {
     fn spawn<F>(name: String, f: F) -> Result<Self>
     where
         F: FnOnce(),
@@ -102,7 +102,7 @@ impl Thread for RaftThread {
         let t = builder
             .spawn(f)
             .map_err(|e| Error::ThreadError(format!("failed to spawn thread: {}", e)))?;
-        Ok(RaftThread(t))
+        Ok(ElectionThread(t))
     }
 
     fn join(self) {
@@ -127,12 +127,12 @@ impl TaskSpawner for ThreadSpawner {
     }
 }
 
-pub struct MemStore<T: RaftType> {
+pub struct MemStore<T: ElectionType> {
     hard_state: Mutex<HardState<T>>,
     vote_factor: T::VoteFactor,
 }
 
-impl<T: RaftType> MemStore<T> {
+impl<T: ElectionType> MemStore<T> {
     pub fn new(hard_state: HardState<T>, vote_factor: T::VoteFactor) -> Self {
         MemStore {
             hard_state: Mutex::new(hard_state),
@@ -141,7 +141,7 @@ impl<T: RaftType> MemStore<T> {
     }
 }
 
-impl<T: RaftType> Storage<T> for MemStore<T> {
+impl<T: ElectionType> Storage<T> for MemStore<T> {
     type Err = std::convert::Infallible;
 
     fn load_hard_state(&self) -> std::result::Result<HardState<T>, Self::Err> {
@@ -163,7 +163,7 @@ impl<T: RaftType> Storage<T> for MemStore<T> {
 pub struct MemRouter {
     group_id: GroupId,
     quorum: RwLock<Quorum>,
-    routing_table: RwLock<HashMap<NodeId, Raft<MemRaftType>>>,
+    routing_table: RwLock<HashMap<NodeId, Election<MemElectionType>>>,
 }
 
 impl MemRouter {
@@ -183,7 +183,7 @@ impl MemRouter {
         }
     }
 
-    pub fn new_node(self: &Arc<Self>, node_id: NodeId, vote_factor: MemVoteFactor<MemRaftType>) {
+    pub fn new_node(self: &Arc<Self>, node_id: NodeId, vote_factor: MemVoteFactor<MemElectionType>) {
         assert_eq!(self.group_id, node_id.group_id);
         {
             let rt = self.routing_table.read();
@@ -199,11 +199,12 @@ impl MemRouter {
             .unwrap();
         let task_spawner = Arc::new(ThreadSpawner);
         let mem_store = MemStore::new(HardState::default(), vote_factor);
-        let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventHandler<MemRaftType>>;
-        let raft = MemRaft::start(options, node_id, task_spawner, mem_store, self.clone(), event_listener).unwrap();
+        let event_listener = Arc::new(LoggingEventListener::new(node_id)) as Arc<dyn EventHandler<MemElectionType>>;
+        let election =
+            MemElection::start(options, node_id, task_spawner, mem_store, self.clone(), event_listener).unwrap();
 
         let mut rt = self.routing_table.write();
-        rt.insert(node_id, raft);
+        rt.insert(node_id, election);
     }
 
     pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, force_leader: bool) -> Result<()> {
@@ -212,7 +213,7 @@ impl MemRouter {
         rt.get(&node_id).unwrap().initialize(members, force_leader)
     }
 
-    pub fn remove_node(&self, node_id: NodeId) -> Option<MemRaft> {
+    pub fn remove_node(&self, node_id: NodeId) -> Option<MemElection> {
         assert_eq!(self.group_id, node_id.group_id);
         self.routing_table.write().remove(&node_id)
     }
@@ -229,8 +230,8 @@ impl MemRouter {
             *self.quorum.write() = quorum;
         }
         let rt = self.routing_table.read();
-        for (_node_id, raft) in rt.iter() {
-            raft.update_options(options.clone()).unwrap();
+        for (_node_id, election) in rt.iter() {
+            election.update_options(options.clone()).unwrap();
         }
     }
 
@@ -240,7 +241,7 @@ impl MemRouter {
         rt.get(&node_id).unwrap().update_options(options).unwrap();
     }
 
-    pub fn metrics(&self, node_id: NodeId) -> Metrics<MemRaftType> {
+    pub fn metrics(&self, node_id: NodeId) -> Metrics<MemElectionType> {
         let mut metrics_watcher = {
             let rt = self.routing_table.read();
             rt.get(&node_id).unwrap().metrics_watcher()
@@ -274,13 +275,13 @@ impl Display for RpcError {
 
 impl std::error::Error for RpcError {}
 
-impl Rpc<MemRaftType> for MemRouter {
+impl Rpc<MemElectionType> for MemRouter {
     type Err = RpcError;
 
     fn heartbeat(
         &self,
-        msg: HeartbeatRequest<MemRaftType>,
-    ) -> std::result::Result<HeartbeatResponse<MemRaftType>, RpcError> {
+        msg: HeartbeatRequest<MemElectionType>,
+    ) -> std::result::Result<HeartbeatResponse<MemElectionType>, RpcError> {
         let rt = self.routing_table.read();
         let node = match rt.get(&msg.target_node_id) {
             None => {
@@ -296,7 +297,7 @@ impl Rpc<MemRaftType> for MemRouter {
         Ok(resp)
     }
 
-    fn vote(&self, msg: VoteRequest<MemRaftType>) -> std::result::Result<VoteResponse<MemRaftType>, RpcError> {
+    fn vote(&self, msg: VoteRequest<MemElectionType>) -> std::result::Result<VoteResponse<MemElectionType>, RpcError> {
         let rt = self.routing_table.read();
         let node = match rt.get(&msg.target_node_id) {
             None => {
@@ -313,17 +314,17 @@ impl Rpc<MemRaftType> for MemRouter {
     }
 }
 
-pub struct LoggingEventListener<T: RaftType> {
+pub struct LoggingEventListener<T: ElectionType> {
     node_id: T::NodeId,
 }
 
-impl<T: RaftType> LoggingEventListener<T> {
+impl<T: ElectionType> LoggingEventListener<T> {
     pub fn new(node_id: T::NodeId) -> Self {
         Self { node_id }
     }
 }
 
-impl<T: RaftType> EventHandler<T> for LoggingEventListener<T>
+impl<T: ElectionType> EventHandler<T> for LoggingEventListener<T>
 where
     T::NodeId: Sync,
 {

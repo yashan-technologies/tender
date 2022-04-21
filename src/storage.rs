@@ -1,16 +1,16 @@
-use crate::RaftType;
+use crate::ElectionType;
 use std::error::Error;
 
-/// Raft persistent state.
+/// Election persistent state.
 #[derive(Clone)]
-pub struct HardState<T: RaftType> {
-    /// Current term of raft.
+pub struct HardState<T: ElectionType> {
+    /// Current term of election.
     pub current_term: u64,
     /// The id of the node voted for in `current_term`.
     pub voted_for: Option<T::NodeId>,
 }
 
-impl<T: RaftType> Default for HardState<T> {
+impl<T: ElectionType> Default for HardState<T> {
     #[inline]
     fn default() -> Self {
         HardState {
@@ -20,8 +20,8 @@ impl<T: RaftType> Default for HardState<T> {
     }
 }
 
-/// Storage interfaces used by raft.
-pub trait Storage<T: RaftType> {
+/// Storage interfaces used by election.
+pub trait Storage<T: ElectionType> {
     type Err: Error;
 
     fn load_hard_state(&self) -> Result<HardState<T>, Self::Err>;

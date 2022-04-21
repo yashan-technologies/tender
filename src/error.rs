@@ -2,7 +2,7 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Error related to the raft.
+/// Error related to election.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("failed to allocate {0} bytes memory")]
@@ -17,7 +17,7 @@ pub enum Error {
     RpcError(String),
     #[error("{0}")]
     InvalidTarget(String),
-    #[error("the requested action is not allowed due to the raft node's current state: {0}")]
+    #[error("the requested action is not allowed due to the node's current state: {0}")]
     NotAllowed(String),
     #[error("{0}")]
     InvalidOptions(String),

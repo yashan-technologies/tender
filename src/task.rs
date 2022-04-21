@@ -1,6 +1,6 @@
 use crate::error::Result;
 
-/// Thread used for raft main task.
+/// Thread used for election main thread.
 pub trait Thread: Sized {
     fn spawn<F>(name: String, f: F) -> Result<Self>
     where

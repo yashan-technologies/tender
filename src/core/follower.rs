@@ -1,16 +1,16 @@
-use crate::core::{RaftCore, State};
+use crate::core::{ElectionCore, State};
 use crate::msg::Message;
-use crate::{Event, RaftType};
+use crate::{ElectionType, Event};
 use crossbeam_channel::RecvTimeoutError;
 
-pub struct Follower<'a, T: RaftType> {
-    core: &'a mut RaftCore<T>,
+pub struct Follower<'a, T: ElectionType> {
+    core: &'a mut ElectionCore<T>,
     transit_event_finished: bool,
 }
 
-impl<'a, T: RaftType> Follower<'a, T> {
+impl<'a, T: ElectionType> Follower<'a, T> {
     #[inline]
-    pub fn new(core: &'a mut RaftCore<T>) -> Self {
+    pub fn new(core: &'a mut ElectionCore<T>) -> Self {
         Self {
             core,
             transit_event_finished: false,
@@ -83,7 +83,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     }
                     Message::UpdateOptions { options, tx } => {
                         info!(
-                            "[Node({})][Term({})] raft update options: {:?}",
+                            "[Node({})][Term({})] election update options: {:?}",
                             self.core.node_id, self.core.hard_state.current_term, options
                         );
                         self.core.update_options(options);
@@ -91,7 +91,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     }
                     Message::Shutdown => {
                         info!(
-                            "[Node({})][Term({})] raft received shutdown message",
+                            "[Node({})][Term({})] election received shutdown message",
                             self.core.node_id, self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -136,7 +136,7 @@ impl<'a, T: RaftType> Follower<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!(
-                            "[Node({})][Term({})] the raft message channel is disconnected",
+                            "[Node({})][Term({})] the election message channel is disconnected",
                             self.core.node_id, self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());

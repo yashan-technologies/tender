@@ -7,14 +7,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tender::{Quorum, State};
 
-/// Raft group election test.
-///
-/// What does this test do?
-///
-/// - brings 3 nodes online with only knowledge of themselves.
-/// - asserts that they remain in startup state with no activity (they should be completely passive).
-/// - initializes the group with membership config including all nodes.
-/// - asserts that the group was able to come online, elect a leader and maintain a stable state.
+/// Group election test.
 #[test]
 fn test_election() {
     init_log();
@@ -62,14 +55,7 @@ fn test_election() {
     mem_router.assert_node_state(node3, State::PreCandidate, 2, None);
 }
 
-/// Raft group election test with quorum.
-///
-/// What does this test do?
-///
-/// - brings 3 nodes online with only knowledge of themselves.
-/// - asserts that they remain in startup state with no activity (they should be completely passive).
-/// - initializes the group with membership config including all nodes.
-/// - asserts that the group was able to come online, elect a leader and maintain a stable state.
+/// Group election test with quorum.
 #[test]
 fn test_election_with_quorum() {
     init_log();

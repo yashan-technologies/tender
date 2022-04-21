@@ -1,18 +1,18 @@
-use crate::core::{RaftCore, State};
+use crate::core::{ElectionCore, State};
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
-use crate::{Event, HeartbeatResponse, RaftType, Rpc};
+use crate::{ElectionType, Event, HeartbeatResponse, Rpc};
 use crossbeam_channel::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-pub struct Leader<'a, T: RaftType> {
-    core: &'a mut RaftCore<T>,
+pub struct Leader<'a, T: ElectionType> {
+    core: &'a mut ElectionCore<T>,
     next_heartbeat_timeout: Option<Instant>,
 }
 
-impl<'a, T: RaftType> Leader<'a, T> {
+impl<'a, T: ElectionType> Leader<'a, T> {
     #[inline]
-    pub fn new(core: &'a mut RaftCore<T>) -> Self {
+    pub fn new(core: &'a mut ElectionCore<T>) -> Self {
         Self {
             core,
             next_heartbeat_timeout: None,
@@ -63,7 +63,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                 member
             );
 
-            let _ = self.core.spawn_task("raft-heartbeat", move || {
+            let _ = self.core.spawn_task("election-heartbeat", move || {
                 match rpc.heartbeat(req) {
                     Ok(resp) => {
                         // ignore send error
@@ -171,7 +171,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     Message::UpdateOptions { options, tx } => {
                         info!(
-                            "[Node({})][Term({})] raft update options: {:?}",
+                            "[Node({})][Term({})] election update options: {:?}",
                             self.core.node_id, self.core.hard_state.current_term, options
                         );
                         self.core.update_options(options);
@@ -179,7 +179,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     Message::Shutdown => {
                         info!(
-                            "[Node({})][Term({})] raft received shutdown message",
+                            "[Node({})][Term({})] election received shutdown message",
                             self.core.node_id, self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -192,7 +192,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     } => {
                         if let Some(e) = error {
                             error!(
-                                "[Node({})][Term({})] raft failed to handle event ({:?}): {}",
+                                "[Node({})][Term({})] failed to handle event ({:?}): {}",
                                 self.core.node_id, self.core.hard_state.current_term, event, e
                             );
                             if let Event::TransitToLeader { .. } = event {
@@ -216,7 +216,7 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!(
-                            "[Node({})][Term({})] the raft message channel is disconnected",
+                            "[Node({})][Term({})] the election message channel is disconnected",
                             self.core.node_id, self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());

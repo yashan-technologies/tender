@@ -1,11 +1,11 @@
 use crate::error::{Error, Result};
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
-use crate::{Event, Options, RaftType};
+use crate::{ElectionType, Event, Options};
 use crossbeam_channel::Sender;
 use std::collections::HashSet;
 
-/// Message processed by raft main thread.
-pub enum Message<T: RaftType> {
+/// Message processed by election main thread.
+pub enum Message<T: ElectionType> {
     HeartbeatRequest {
         req: HeartbeatRequest<T>,
         tx: Sender<Result<HeartbeatResponse<T>>>,

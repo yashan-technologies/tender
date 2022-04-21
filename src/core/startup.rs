@@ -1,17 +1,17 @@
-use crate::core::{MemberConfig, RaftCore, State};
+use crate::core::{ElectionCore, MemberConfig, State};
 use crate::error::Result;
 use crate::msg::Message;
-use crate::{Error, Event, HardState, RaftType, Storage};
+use crate::{ElectionType, Error, Event, HardState, Storage};
 use crossbeam_channel::RecvTimeoutError;
 use std::collections::HashSet;
 
-pub struct Startup<'a, T: RaftType> {
-    core: &'a mut RaftCore<T>,
+pub struct Startup<'a, T: ElectionType> {
+    core: &'a mut ElectionCore<T>,
 }
 
-impl<'a, T: RaftType> Startup<'a, T> {
+impl<'a, T: ElectionType> Startup<'a, T> {
     #[inline]
-    pub fn new(core: &'a mut RaftCore<T>) -> Self {
+    pub fn new(core: &'a mut ElectionCore<T>) -> Self {
         Self { core }
     }
 
@@ -40,12 +40,12 @@ impl<'a, T: RaftType> Startup<'a, T> {
             self.core.set_state(State::Leader, set_prev_state);
             if force_leader {
                 info!(
-                    "[Node({})][Term({})] raft is forced to be leader",
+                    "[Node({})][Term({})] this node is forced to be leader",
                     self.core.node_id, self.core.hard_state.current_term
                 );
             } else {
                 info!(
-                    "[Node({})][Term({})] raft is initialized without other members, so directly transit to leader",
+                    "[Node({})][Term({})] this node is initialized without other members, so directly transit to leader",
                     self.core.node_id, self.core.hard_state.current_term
                 );
             }
@@ -54,7 +54,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
             self.core.set_state(State::Follower, set_prev_state);
             info!(
-                "[Node({})][Term({})] raft is initialized with {} members, so transit to follower",
+                "[Node({})][Term({})] this node is initialized with {} members, so transit to follower",
                 self.core.node_id,
                 self.core.hard_state.current_term,
                 members.len()
@@ -84,7 +84,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
             Ok(s) => s,
             Err(e) => {
                 error!(
-                    "[Node({})][Term({})] raft is shutting down caused by fatal storage error: {}",
+                    "[Node({})][Term({})] this node is shutting down caused by fatal storage error: {}",
                     self.core.node_id, self.core.hard_state.current_term, e
                 );
                 self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -118,7 +118,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!(
-                                "[Node({})][Term({})] raft update options: {:?}",
+                                "[Node({})][Term({})] election update options: {:?}",
                                 self.core.node_id, self.core.hard_state.current_term, options
                             );
                             self.core.update_options(options);
@@ -126,7 +126,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         }
                         Message::Shutdown => {
                             info!(
-                                "[Node({})][Term({})] raft received shutdown message",
+                                "[Node({})][Term({})] election received shutdown message",
                                 self.core.node_id, self.core.hard_state.current_term
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -134,7 +134,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                         Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
-                                    "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                    "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                     self.core.node_id, self.core.hard_state.current_term, event, term, e
                                 );
                             }
@@ -162,7 +162,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!(
-                            "[Node({})][Term({})] the raft message channel is disconnected",
+                            "[Node({})][Term({})] the election message channel is disconnected",
                             self.core.node_id, self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());

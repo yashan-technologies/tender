@@ -9,7 +9,7 @@ use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse}
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
 use crate::wait_group::WaitGroup;
-use crate::{Event, EventHandler, Options, RaftType, Thread, VoteFactor, VoteResult};
+use crate::{ElectionType, Event, EventHandler, Options, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ mod follower;
 mod leader;
 mod startup;
 
-/// The state of the raft node.
+/// The state of the node.
 #[derive(Debug, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum State {
@@ -32,12 +32,12 @@ pub enum State {
     Leader = 5,
 }
 
-pub struct MemberConfig<T: RaftType> {
+pub struct MemberConfig<T: ElectionType> {
     pub(crate) members: HashSet<T::NodeId>,
     pub(crate) members_after_consensus: Option<HashSet<T::NodeId>>,
 }
 
-impl<T: RaftType> MemberConfig<T> {
+impl<T: ElectionType> MemberConfig<T> {
     #[inline]
     pub fn all_members(&self) -> HashSet<T::NodeId> {
         let mut all = self.members.clone();
@@ -74,7 +74,7 @@ impl<T: RaftType> MemberConfig<T> {
     }
 }
 
-pub struct RaftCore<T: RaftType> {
+pub struct ElectionCore<T: ElectionType> {
     options: Options,
     node_id: T::NodeId,
     members: MemberConfig<T>,
@@ -103,7 +103,7 @@ pub struct RaftCore<T: RaftType> {
     task_wait_group: WaitGroup,
 }
 
-impl<T: RaftType> RaftCore<T> {
+impl<T: ElectionType> ElectionCore<T> {
     #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn new(
@@ -117,7 +117,7 @@ impl<T: RaftType> RaftCore<T> {
         event_handler: Arc<dyn EventHandler<T>>,
         metrics_reporter: MetricsReporter<T>,
     ) -> Self {
-        RaftCore {
+        ElectionCore {
             options,
             node_id: node_id.clone(),
             members: MemberConfig::with_node(node_id),
@@ -145,12 +145,12 @@ impl<T: RaftType> RaftCore<T> {
 
     #[inline]
     pub fn spawn(self) -> Result<T::Thread> {
-        T::Thread::spawn(String::from("raft-main"), move || self.main())
+        T::Thread::spawn(String::from("election-main"), move || self.main())
     }
 
     fn main(mut self) {
         info!(
-            "[Node({})][Term({})] start raft main task",
+            "[Node({})][Term({})] start election main thread",
             self.node_id, self.hard_state.current_term
         );
         self.set_state(State::Startup, None);
@@ -166,7 +166,7 @@ impl<T: RaftType> RaftCore<T> {
                     let _result = self.spawn_event_handling_task(Event::Shutdown);
                     self.task_wait_group.wait();
                     info!(
-                        "[Node({})][Term({})] Raft has shutdown",
+                        "[Node({})][Term({})] election has shutdown",
                         self.node_id, self.hard_state.current_term
                     );
                     return;
@@ -348,7 +348,7 @@ impl<T: RaftType> RaftCore<T> {
         // transition to follower state if needed
         if !self.is_state(State::Follower) {
             info!(
-                "[Node({})][Term({})] raft received valid heartbeat in {:?} state, so transit to follower",
+                "[Node({})][Term({})] received valid heartbeat in {:?} state, so transit to follower",
                 self.node_id,
                 self.hard_state.current_term,
                 self.state()
@@ -484,7 +484,7 @@ impl<T: RaftType> RaftCore<T> {
         let tx = self.msg_tx.clone();
         let term = self.hard_state.current_term;
         let state_id = self.state_id();
-        let result = self.spawn_task("raft-event-handler", move || {
+        let result = self.spawn_task("election-event-handler", move || {
             let result = handler.handle_event(ev.clone());
             let error = result.err();
             let _ = tx.send(Message::EventHandlingResult {

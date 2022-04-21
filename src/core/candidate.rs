@@ -1,27 +1,27 @@
-use crate::core::{RaftCore, State};
+use crate::core::{ElectionCore, State};
 use crate::error::Result;
 use crate::msg::Message;
 use crate::rpc::{Rpc, VoteRequest, VoteResponse};
 use crate::storage::Storage;
-use crate::{Event, Quorum, RaftType};
+use crate::{ElectionType, Event, Quorum};
 use crossbeam_channel::RecvTimeoutError;
 
-pub struct Candidate<'a, T: RaftType> {
-    core: &'a mut RaftCore<T>,
+pub struct Candidate<'a, T: ElectionType> {
+    core: &'a mut ElectionCore<T>,
     pre_vote: bool,
-    // The number of votes needed from the old (current) member config in order to become the raft leader.
+    // The number of votes needed from the old (current) member config in order to become leader.
     votes_needed_old: usize,
     // The number of votes which have been granted by peer nodes of the old (current) member config.
     votes_granted_old: usize,
-    // The number of votes needed from the new member config in order to become the raft leader (if applicable).
+    // The number of votes needed from the new member config in order to become leader (if applicable).
     votes_needed_new: usize,
     // The number of votes which have been granted by peer nodes of the new member config (if applicable).
     votes_granted_new: usize,
 }
 
-impl<'a, T: RaftType> Candidate<'a, T> {
+impl<'a, T: ElectionType> Candidate<'a, T> {
     #[inline]
-    pub fn new(core: &'a mut RaftCore<T>, pre_vote: bool) -> Self {
+    pub fn new(core: &'a mut ElectionCore<T>, pre_vote: bool) -> Self {
         Self {
             core,
             pre_vote,
@@ -79,7 +79,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                 self.core.hard_state.voted_for = Some(self.core.node_id.clone());
                 if let Err(e) = self.core.storage.save_hard_state(&self.core.hard_state) {
                     error!(
-                        "[Node({})][Term({})] raft is shutting down caused by fatal storage error: {}",
+                        "[Node({})][Term({})] election is shutting down caused by fatal storage error: {}",
                         self.core.node_id, self.core.hard_state.current_term, e
                     );
                     self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -144,7 +144,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!(
-                                "[Node({})][Term({})] raft update options: {:?}",
+                                "[Node({})][Term({})] election update options: {:?}",
                                 self.core.node_id, self.core.hard_state.current_term, options
                             );
                             self.core.update_options(options);
@@ -152,7 +152,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         }
                         Message::Shutdown => {
                             info!(
-                                "[Node({})][Term({})] raft received shutdown message",
+                                "[Node({})][Term({})] election received shutdown message",
                                 self.core.node_id, self.core.hard_state.current_term
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -160,7 +160,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
-                                    "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                    "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                     self.core.node_id, self.core.hard_state.current_term, event, term, e
                                 );
                             }
@@ -173,7 +173,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                         }
                         RecvTimeoutError::Disconnected => {
                             info!(
-                                "[Node({})][Term({})] the raft message channel is disconnected",
+                                "[Node({})][Term({})] the election message channel is disconnected",
                                 self.core.node_id, self.core.hard_state.current_term
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -269,7 +269,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             let tx = self.core.msg_tx.clone();
             let node_id = self.core.node_id.clone();
 
-            let _ = self.core.spawn_task("raft-vote", move || match rpc.vote(req) {
+            let _ = self.core.spawn_task("election-vote", move || match rpc.vote(req) {
                 Ok(resp) => {
                     let _ = tx.send(Message::VoteResponse(resp));
                 }

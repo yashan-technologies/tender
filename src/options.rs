@@ -7,7 +7,7 @@ const DEFAULT_ELECTION_TIMEOUT_MAX: u64 = 3000;
 /// Default heartbeat interval.
 const DEFAULT_HEARTBEAT_INTERVAL: u64 = 500;
 
-/// The raft runtime configurations.
+/// The election runtime configurations.
 #[derive(Debug, Clone)]
 pub struct Options {
     /// The minimum election timeout in milliseconds.
@@ -96,7 +96,7 @@ impl Default for Options {
     }
 }
 
-/// The builder of raft runtime configurations.
+/// The builder of election runtime configurations.
 #[derive(Debug, Default)]
 pub struct OptionsBuilder {
     election_timeout_min: Option<u64>,

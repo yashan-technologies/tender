@@ -1,18 +1,18 @@
-use crate::{RaftType, State};
+use crate::{ElectionType, State};
 use watch::{WatchReceiver, WatchSender};
 
-/// A set of metrics describing the current state of the raft node.
+/// A set of metrics describing the current state of election.
 #[derive(Clone)]
-pub struct Metrics<T: RaftType> {
-    /// The state of the raft node.
+pub struct Metrics<T: ElectionType> {
+    /// The state of the node.
     pub state: State,
-    /// Current term of the raft node.
+    /// Current term of the node.
     pub current_term: u64,
-    /// Current leader of the raft group.
+    /// Current leader of the group.
     pub current_leader: Option<T::NodeId>,
 }
 
-impl<T: RaftType> Metrics<T> {
+impl<T: ElectionType> Metrics<T> {
     #[inline]
     pub(crate) fn new() -> Self {
         Metrics {
@@ -23,11 +23,11 @@ impl<T: RaftType> Metrics<T> {
     }
 }
 
-pub(crate) struct MetricsReporter<T: RaftType> {
+pub(crate) struct MetricsReporter<T: ElectionType> {
     metrics_tx: WatchSender<Metrics<T>>,
 }
 
-impl<T: RaftType> MetricsReporter<T> {
+impl<T: ElectionType> MetricsReporter<T> {
     #[inline]
     pub(crate) fn new(metrics_tx: WatchSender<Metrics<T>>) -> Self {
         MetricsReporter { metrics_tx }
@@ -39,19 +39,19 @@ impl<T: RaftType> MetricsReporter<T> {
     }
 }
 
-/// The metrics watcher of the raft node.
+/// The metrics watcher of the node.
 #[derive(Clone)]
-pub struct MetricsWatcher<T: RaftType> {
+pub struct MetricsWatcher<T: ElectionType> {
     metrics_rx: WatchReceiver<Metrics<T>>,
 }
 
-impl<T: RaftType> MetricsWatcher<T> {
+impl<T: ElectionType> MetricsWatcher<T> {
     #[inline]
     pub(crate) fn new(metrics_rx: WatchReceiver<Metrics<T>>) -> Self {
         MetricsWatcher { metrics_rx }
     }
 
-    /// A set of metrics describing the current state of the raft node.
+    /// A set of metrics describing the current state of the node.
     #[inline]
     pub fn metrics(&mut self) -> Metrics<T> {
         self.metrics_rx.get()
@@ -59,7 +59,7 @@ impl<T: RaftType> MetricsWatcher<T> {
 }
 
 #[inline]
-pub(crate) fn metrics_channel<T: RaftType>() -> (MetricsReporter<T>, MetricsWatcher<T>) {
+pub(crate) fn metrics_channel<T: ElectionType>() -> (MetricsReporter<T>, MetricsWatcher<T>) {
     let (tx, rx) = watch::channel(Metrics::new());
     (MetricsReporter::new(tx), MetricsWatcher::new(rx))
 }

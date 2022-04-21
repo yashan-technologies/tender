@@ -1,9 +1,9 @@
 use crate::error::Result;
-use crate::{RaftType, State};
+use crate::{ElectionType, State};
 
-/// The event of the raft node.
+/// The event of election.
 #[derive(Clone, Debug)]
-pub enum Event<T: RaftType> {
+pub enum Event<T: ElectionType> {
     Startup,
     TransitToLeader { term: u64 },
     TransitToFollower { term: u64, prev_state: State },
@@ -13,8 +13,8 @@ pub enum Event<T: RaftType> {
     Shutdown,
 }
 
-/// The event handler of the raft node.
-pub trait EventHandler<T: RaftType>: Send + Sync {
-    /// Handle the given raft event.
+/// The event handler of election.
+pub trait EventHandler<T: ElectionType>: Send + Sync {
+    /// Handle the given election event.
     fn handle_event(&self, event: Event<T>) -> Result<()>;
 }
