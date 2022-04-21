@@ -398,14 +398,20 @@ impl<T: RaftType> RaftCore<T> {
         // minimum, then we must update term & immediately become follower. We still need to
         // do vote checking after this.
         if msg.term > self.hard_state.current_term {
-            info!(
-                "[Node({})][Term({})] vote request term({}) is greater than current term({}), so transit to follower",
-                self.node_id, self.hard_state.current_term, msg.term, self.hard_state.current_term
-            );
             self.update_current_term(msg.term, None)?;
             self.update_next_election_timeout(false);
-            #[allow(clippy::needless_option_as_deref)]
-            self.set_state(State::Follower, set_prev_state.as_deref_mut());
+            if !self.is_state(State::Follower) {
+                #[allow(clippy::needless_option_as_deref)]
+                self.set_state(State::Follower, set_prev_state.as_deref_mut());
+                info!(
+                "[Node({})][Term({})] vote request term({}) is greater than current term({}), so transit to follower",
+                self.node_id, self.hard_state.current_term, msg.term, self.hard_state.current_term);
+            } else {
+                info!(
+                    "[Node({})][Term({})] vote request term({}) is greater than current term({})",
+                    self.node_id, self.hard_state.current_term, msg.term, self.hard_state.current_term
+                );
+            }
             self.report_metrics();
         }
 
