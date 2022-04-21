@@ -13,7 +13,6 @@ documentation = "https://docs.rs/tender/"
 
 [dependencies]
 log = "0.4.14"
-thiserror = "1.0.30"
 fastrand = "1.7.0"
 crossbeam-channel = "0.5.2"
 watch = { version = "0.2.1", features = ["parking_lot"] }
