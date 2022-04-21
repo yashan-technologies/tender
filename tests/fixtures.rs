@@ -225,8 +225,10 @@ impl MemRouter {
             .quorum(quorum)
             .build()
             .unwrap();
-        *self.quorum.write() = quorum;
-        let rt = self.routing_table.write();
+        {
+            *self.quorum.write() = quorum;
+        }
+        let rt = self.routing_table.read();
         for (_node_id, raft) in rt.iter() {
             raft.update_options(options.clone()).unwrap();
         }
@@ -234,7 +236,7 @@ impl MemRouter {
 
     pub fn update_node_options(&self, node_id: NodeId, options: Options) {
         assert_eq!(self.group_id, node_id.group_id);
-        let rt = self.routing_table.write();
+        let rt = self.routing_table.read();
         rt.get(&node_id).unwrap().update_options(options).unwrap();
     }
 
