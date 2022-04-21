@@ -42,6 +42,8 @@ impl<'a, T: RaftType> Candidate<'a, T> {
     }
 
     pub fn run(mut self) {
+        self.core.increase_state_id();
+
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
 
@@ -155,7 +157,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
-                        Message::EventHandlingResult { event, error, term } => {
+                        Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
                                     "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
@@ -201,6 +203,17 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             self.votes_needed_new = 0;
             self.votes_granted_new = 0;
         }
+
+        debug!(
+            "[Node({})][Term({})] quorum is {:?}, votes granted old({}/{}), votes granted new({}/{})",
+            self.core.node_id,
+            self.core.hard_state.current_term,
+            self.core.options.quorum(),
+            self.votes_granted_old,
+            self.votes_needed_old,
+            self.votes_granted_new,
+            self.votes_needed_new,
+        );
     }
 
     fn spawn_parallel_vote_request(&mut self) {
@@ -295,7 +308,7 @@ impl<'a, T: RaftType> Candidate<'a, T> {
         }
 
         if msg.vote_result.is_granted() {
-            if self.core.members.contains(&msg.node_id) {
+            if self.core.members.members.contains(&msg.node_id) {
                 self.votes_granted_old += 1;
             }
             if self
@@ -308,6 +321,16 @@ impl<'a, T: RaftType> Candidate<'a, T> {
             {
                 self.votes_granted_new += 1;
             }
+
+            debug!(
+                "[Node({})][Term({})] votes granted old({}/{}), votes granted new({}/{})",
+                self.core.node_id,
+                self.core.hard_state.current_term,
+                self.votes_granted_old,
+                self.votes_needed_old,
+                self.votes_granted_new,
+                self.votes_needed_new,
+            );
 
             if self.votes_granted_old >= self.votes_needed_old && self.votes_granted_new >= self.votes_needed_new {
                 if self.pre_vote {

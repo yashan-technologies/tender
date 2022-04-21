@@ -72,6 +72,8 @@ impl<'a, T: RaftType> Startup<'a, T> {
     }
 
     pub fn run(mut self) {
+        self.core.increase_state_id();
+
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
 
@@ -129,7 +131,7 @@ impl<'a, T: RaftType> Startup<'a, T> {
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
-                        Message::EventHandlingResult { event, error, term } => {
+                        Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
                                     "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",

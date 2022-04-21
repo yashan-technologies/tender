@@ -30,5 +30,6 @@ pub enum Message<T: RaftType> {
         event: Event<T>,
         error: Option<Error>,
         term: u64,
+        state_id: u64,
     },
 }

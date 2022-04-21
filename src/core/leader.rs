@@ -97,6 +97,8 @@ impl<'a, T: RaftType> Leader<'a, T> {
     }
 
     pub fn run(mut self) {
+        self.core.increase_state_id();
+
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
 
@@ -125,6 +127,9 @@ impl<'a, T: RaftType> Leader<'a, T> {
             "[Node({})][Term({})] start the leader loop",
             self.core.node_id, self.core.hard_state.current_term
         );
+
+        // Send the first heartbeat
+        self.spawn_parallel_heartbeat();
 
         loop {
             if !self.core.is_state(State::Leader) {
@@ -182,15 +187,16 @@ impl<'a, T: RaftType> Leader<'a, T> {
                     Message::EventHandlingResult {
                         event,
                         error,
-                        term: _term,
+                        term: _,
+                        state_id,
                     } => {
                         if let Some(e) = error {
                             error!(
                                 "[Node({})][Term({})] raft failed to handle event ({:?}): {}",
                                 self.core.node_id, self.core.hard_state.current_term, event, e
                             );
-                            if let Event::TransitToLeader { term } = event {
-                                if self.core.hard_state.current_term == term {
+                            if let Event::TransitToLeader { .. } = event {
+                                if self.core.state_id() == state_id {
                                     error!(
                                         "[Node({})][Term({})] failed to handle TransitToLeader event, so transit to follower",
                                         self.core.node_id,self.core.hard_state.current_term

@@ -47,6 +47,7 @@ impl<T: RaftType> MemberConfig<T> {
         all
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn contains(&self, node_id: &T::NodeId) -> bool {
         self.members.contains(node_id)
@@ -84,6 +85,7 @@ pub struct RaftCore<T: RaftType> {
 
     state: State,
     prev_state: State,
+    state_id: u64,
     hard_state: HardState<T>,
     current_leader: Option<T::NodeId>,
     vote_id: u64,
@@ -121,6 +123,7 @@ impl<T: RaftType> RaftCore<T> {
             members: MemberConfig::with_node(node_id),
             state: State::Startup,
             prev_state: State::Startup,
+            state_id: 0,
             hard_state: HardState {
                 current_term: 0,
                 voted_for: None,
@@ -201,6 +204,16 @@ impl<T: RaftType> RaftCore<T> {
             }
         }
         self.state = state;
+    }
+
+    #[inline]
+    fn increase_state_id(&mut self) {
+        self.state_id += 1;
+    }
+
+    #[inline]
+    fn state_id(&self) -> u64 {
+        self.state_id
     }
 
     #[inline]
@@ -399,10 +412,10 @@ impl<T: RaftType> RaftCore<T> {
         // do vote checking after this.
         if msg.term > self.hard_state.current_term {
             self.update_current_term(msg.term, None)?;
-            self.update_next_election_timeout(false);
             if !self.is_state(State::Follower) {
                 #[allow(clippy::needless_option_as_deref)]
                 self.set_state(State::Follower, set_prev_state.as_deref_mut());
+                self.update_next_election_timeout(false);
                 info!(
                 "[Node({})][Term({})] vote request term({}) is greater than current term({}), so transit to follower",
                 self.node_id, self.hard_state.current_term, msg.term, self.hard_state.current_term);
@@ -470,10 +483,16 @@ impl<T: RaftType> RaftCore<T> {
         let ev = event.clone();
         let tx = self.msg_tx.clone();
         let term = self.hard_state.current_term;
+        let state_id = self.state_id();
         let result = self.spawn_task("raft-event-handler", move || {
             let result = handler.handle_event(ev.clone());
             let error = result.err();
-            let _ = tx.send(Message::EventHandlingResult { event: ev, error, term });
+            let _ = tx.send(Message::EventHandlingResult {
+                event: ev,
+                error,
+                term,
+                state_id,
+            });
         });
         if let Err(ref e) = result {
             error!(

@@ -18,6 +18,8 @@ impl<'a, T: RaftType> Follower<'a, T> {
     }
 
     pub fn run(mut self) {
+        self.core.increase_state_id();
+
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
 
@@ -94,16 +96,24 @@ impl<'a, T: RaftType> Follower<'a, T> {
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
-                    Message::EventHandlingResult { event, error, term } => {
+                    Message::EventHandlingResult {
+                        event,
+                        error,
+                        term,
+                        state_id,
+                    } => {
                         if let Some(e) = error {
                             error!(
-                                "[Node({})][Term({})] raft failed to handle event ({:?}) in term {}: {} ",
+                                "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                 self.core.node_id, self.core.hard_state.current_term, event, term, e
                             );
-                        } else if matches!(event, Event::TransitToFollower { .. })
-                            && term == self.core.hard_state.current_term
-                        {
+                        } else if matches!(event, Event::TransitToFollower { .. }) && state_id == self.core.state_id() {
                             self.transit_event_finished = true;
+                        } else {
+                            debug!(
+                                "[Node({})][Term({})] event ({:?}) in term {} is handled",
+                                self.core.node_id, self.core.hard_state.current_term, event, term,
+                            );
                         }
                     }
                 },
@@ -118,6 +128,10 @@ impl<'a, T: RaftType> Follower<'a, T> {
                             );
                         } else {
                             self.core.next_election_timeout = None;
+                            debug!(
+                                "[Node({})][Term({})] an election timeout is hit, but TransitToFollower is not finished",
+                                self.core.node_id, self.core.hard_state.current_term
+                            );
                         }
                     }
                     RecvTimeoutError::Disconnected => {
