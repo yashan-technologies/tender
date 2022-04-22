@@ -35,6 +35,14 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                 self.core.hard_state.current_term,
                 members.len()
             );
+        } else if initial_mode == InitialMode::AsCandidate {
+            self.core.set_state(State::PreCandidate, set_prev_state);
+            info!(
+                "[Node({})][Term({})] this node is initialized with {} members, and transit to pre-candidate",
+                self.core.node_id,
+                self.core.hard_state.current_term,
+                members.len()
+            );
         } else if initial_mode == InitialMode::AsLeader || members.len() == 1 {
             let hard_state = HardState {
                 current_term: self.core.hard_state.current_term + 1,
@@ -62,7 +70,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
             self.core.set_state(State::Follower, set_prev_state);
             info!(
-                "[Node({})][Term({})] this node is initialized with {} members, so transit to follower",
+                "[Node({})][Term({})] this node is initialized with {} members, and transit to follower",
                 self.core.node_id,
                 self.core.hard_state.current_term,
                 members.len()

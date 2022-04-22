@@ -92,6 +92,8 @@ pub enum InitialMode {
     AsLeader,
     /// Force the node to be observer.
     AsObserver,
+    /// Force the node to be candidate(pre-candidate at first).
+    AsCandidate,
 }
 
 /// The election API.

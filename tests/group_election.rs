@@ -150,6 +150,37 @@ fn test_election_with_observer() {
     mem_router.assert_node_state(node3, State::Observer, 2, Some(node2));
 }
 
+/// Group election test: initial candidate.
+#[test]
+fn test_election_with_initial_candidate() {
+    init_log();
+
+    let group_id = 1000;
+    let node1 = NodeId::new(group_id, 1001);
+    let node2 = NodeId::new(group_id, 1002);
+    let node3 = NodeId::new(group_id, 1003);
+
+    let mem_router = Arc::new(MemRouter::new(group_id));
+    mem_router.new_node(node1, MemVoteFactor::new(1));
+    mem_router.new_node(node2, MemVoteFactor::new(1));
+    mem_router.new_node(node3, MemVoteFactor::new(1));
+
+    sleep(Duration::from_secs(1));
+    mem_router.assert_node_state(node1, State::Startup, 0, None);
+    mem_router.assert_node_state(node2, State::Startup, 0, None);
+    mem_router.assert_node_state(node3, State::Startup, 0, None);
+
+    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+
+    mem_router.init_node(node1, members.clone(), InitialMode::Normal);
+    mem_router.init_node(node2, members.clone(), InitialMode::Normal);
+    mem_router.init_node(node3, members, InitialMode::AsCandidate);
+    sleep(Duration::from_secs(3));
+    mem_router.assert_node_state(node1, State::Follower, 1, Some(node3));
+    mem_router.assert_node_state(node2, State::Follower, 1, Some(node3));
+    mem_router.assert_node_state(node3, State::Leader, 1, Some(node3));
+}
+
 /// Move leader test.
 #[test]
 fn test_move_leader() {
