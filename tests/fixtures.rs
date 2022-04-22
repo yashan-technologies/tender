@@ -7,9 +7,9 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tender::{
-    Election, ElectionType, Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics,
-    MoveLeaderRequest, NodeId as ElectionNodeId, Options, Quorum, Result, Rpc, State, Storage, TaskSpawner, Thread,
-    VoteFactor, VoteRequest, VoteResponse, VoteResult,
+    Election, ElectionType, Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, InitialMode,
+    Metrics, MoveLeaderRequest, NodeId as ElectionNodeId, Options, Quorum, Result, Rpc, State, Storage, TaskSpawner,
+    Thread, VoteFactor, VoteRequest, VoteResponse, VoteResult,
 };
 
 pub type MemElection = Election<MemElectionType>;
@@ -207,10 +207,10 @@ impl MemRouter {
         rt.insert(node_id, election);
     }
 
-    pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, force_leader: bool) -> Result<()> {
+    pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, initial_mode: InitialMode) {
         assert_eq!(self.group_id, node_id.group_id);
         let rt = self.routing_table.read();
-        rt.get(&node_id).unwrap().initialize(members, force_leader)
+        rt.get(&node_id).unwrap().initialize(members, initial_mode).unwrap();
     }
 
     pub fn remove_node(&self, node_id: NodeId) -> Option<MemElection> {

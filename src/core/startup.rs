@@ -1,7 +1,7 @@
 use crate::core::{ElectionCore, MemberConfig, State};
 use crate::error::Result;
 use crate::msg::Message;
-use crate::{ElectionType, Error, Event, HardState, Storage};
+use crate::{ElectionType, Error, Event, HardState, InitialMode, Storage};
 use crossbeam_channel::RecvTimeoutError;
 use std::collections::HashSet;
 
@@ -20,14 +20,22 @@ impl<'a, T: ElectionType> Startup<'a, T> {
     fn init_with_members(
         &mut self,
         mut members: HashSet<T::NodeId>,
-        force_leader: bool,
+        initial_mode: InitialMode,
         set_prev_state: Option<&mut bool>,
     ) -> Result<()> {
         if !members.contains(&self.core.node_id) {
             members.insert(self.core.node_id.clone());
         }
 
-        if force_leader || members.len() == 1 {
+        if initial_mode == InitialMode::AsObserver {
+            self.core.set_state(State::Observer, set_prev_state);
+            info!(
+                "[Node({})][Term({})] this node is initialized with {} members, and transit to observer",
+                self.core.node_id,
+                self.core.hard_state.current_term,
+                members.len()
+            );
+        } else if initial_mode == InitialMode::AsLeader || members.len() == 1 {
             let hard_state = HardState {
                 current_term: self.core.hard_state.current_term + 1,
                 voted_for: Some(self.core.node_id.clone()),
@@ -38,7 +46,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                 .map_err(|e| Error::StorageError(e.to_string()))?;
             self.core.hard_state = hard_state;
             self.core.set_state(State::Leader, set_prev_state);
-            if force_leader {
+            if initial_mode == InitialMode::AsLeader {
                 info!(
                     "[Node({})][Term({})] this node is forced to be leader",
                     self.core.node_id, self.core.hard_state.current_term
@@ -111,10 +119,10 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                     match msg {
                         Message::Initialize {
                             members,
-                            force_leader,
+                            initial_mode,
                             tx,
                         } => {
-                            let _ = tx.send(self.init_with_members(members, force_leader, set_prev_state.as_mut()));
+                            let _ = tx.send(self.init_with_members(members, initial_mode, set_prev_state.as_mut()));
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!(

@@ -83,6 +83,17 @@ pub trait ElectionType: 'static + Sized + Clone + Debug {
     type Rpc: Rpc<Self> + Send + Sync;
 }
 
+/// Initial mode when initialize election.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum InitialMode {
+    /// Normal election process.
+    Normal,
+    /// Force the node to be leader.
+    AsLeader,
+    /// Force the node to be observer.
+    AsObserver,
+}
+
 /// The election API.
 ///
 /// Applications building on top of `Tender` will use this to spawn a election main thread and interact with
@@ -151,12 +162,12 @@ impl<T: ElectionType> Election<T> {
 
     /// Initialize this node.
     #[inline]
-    pub fn initialize(&self, members: HashSet<T::NodeId>, force_leader: bool) -> Result<()> {
+    pub fn initialize(&self, members: HashSet<T::NodeId>, initial_mode: InitialMode) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::Initialize {
                 members,
-                force_leader,
+                initial_mode,
                 tx,
             })
             .map_err(|e| Error::ChannelError(format!("failed to send initialize to message channel: {}", e)))?;

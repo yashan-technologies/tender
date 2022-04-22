@@ -7,6 +7,7 @@ pub enum Event<T: ElectionType> {
     Startup,
     TransitToLeader { term: u64 },
     TransitToFollower { term: u64, prev_state: State },
+    TransitToObserver { term: u64, prev_state: State },
     TransitToPreCandidate,
     TransitToCandidate,
     ChangeLeader(T::NodeId),

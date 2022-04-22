@@ -1,6 +1,7 @@
 use crate::core::candidate::Candidate;
 use crate::core::follower::Follower;
 use crate::core::leader::Leader;
+use crate::core::observer::Observer;
 use crate::core::startup::Startup;
 use crate::error::{Error, Result};
 use crate::metrics::{Metrics, MetricsReporter};
@@ -18,6 +19,7 @@ use std::time::{Duration, Instant};
 mod candidate;
 mod follower;
 mod leader;
+mod observer;
 mod startup;
 
 /// The state of the node.
@@ -30,6 +32,7 @@ pub enum State {
     PreCandidate = 3,
     Candidate = 4,
     Leader = 5,
+    Observer = 6,
 }
 
 pub struct MemberConfig<T: ElectionType> {
@@ -159,11 +162,6 @@ impl<T: ElectionType> ElectionCore<T> {
 
         loop {
             match self.state {
-                State::Startup => Startup::new(&mut self).run(),
-                State::Follower => Follower::new(&mut self).run(),
-                State::PreCandidate => Candidate::new(&mut self, true).run(),
-                State::Candidate => Candidate::new(&mut self, false).run(),
-                State::Leader => Leader::new(&mut self).run(),
                 State::Shutdown => {
                     let _result = self.spawn_event_handling_task(Event::Shutdown);
                     self.task_wait_group.wait();
@@ -173,6 +171,12 @@ impl<T: ElectionType> ElectionCore<T> {
                     );
                     return;
                 }
+                State::Startup => Startup::new(&mut self).run(),
+                State::Follower => Follower::new(&mut self).run(),
+                State::PreCandidate => Candidate::new(&mut self, true).run(),
+                State::Candidate => Candidate::new(&mut self, false).run(),
+                State::Leader => Leader::new(&mut self).run(),
+                State::Observer => Observer::new(&mut self).run(),
             }
         }
     }
@@ -348,7 +352,7 @@ impl<T: ElectionType> ElectionCore<T> {
         }
 
         // transition to follower state if needed
-        if !self.is_state(State::Follower) {
+        if !self.is_state(State::Follower) && !self.is_state(State::Observer) {
             info!(
                 "[Node({})][Term({})] received valid heartbeat in {:?} state, so transit to follower",
                 self.node_id,
@@ -417,7 +421,7 @@ impl<T: ElectionType> ElectionCore<T> {
         // do vote checking after this.
         if msg.term > self.hard_state.current_term {
             self.update_current_term(msg.term, None)?;
-            if !self.is_state(State::Follower) {
+            if !self.is_state(State::Follower) && !self.is_state(State::Observer) {
                 #[allow(clippy::needless_option_as_deref)]
                 self.set_state(State::Follower, set_prev_state.as_deref_mut());
                 self.update_next_election_timeout(false);
@@ -461,15 +465,22 @@ impl<T: ElectionType> ElectionCore<T> {
         match &self.hard_state.voted_for {
             None => {
                 // This node has not yet voted for the current term, so vote for the candidate.
-                self.set_state(State::Follower, set_prev_state);
+                if !self.is_state(State::Follower) && !self.is_state(State::Observer) {
+                    self.set_state(State::Follower, set_prev_state);
+                    self.update_next_election_timeout(false);
+                    debug!(
+                        "[Node({})][Term({})] granted vote for candidate({}) and revert to follower",
+                        self.node_id, self.hard_state.current_term, msg.candidate_id
+                    );
+                } else {
+                    debug!(
+                        "[Node({})][Term({})] granted vote for candidate({})",
+                        self.node_id, self.hard_state.current_term, msg.candidate_id
+                    );
+                }
                 self.hard_state.voted_for = Some(msg.candidate_id.clone());
-                self.update_next_election_timeout(false);
                 self.save_hard_state()?;
                 self.report_metrics();
-                debug!(
-                    "[Node({})][Term({})] voted for candidate({})",
-                    self.node_id, self.hard_state.current_term, msg.candidate_id
-                );
                 Ok(self.create_vote_response(msg, vote_result))
             }
             Some(candidate_id) => {
