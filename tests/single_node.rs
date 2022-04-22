@@ -8,13 +8,6 @@ use std::time::Duration;
 use tender::{Options, State};
 
 /// Single-node initialization test.
-///
-/// What does this test do?
-///
-/// - brings 1 node online with only knowledge of itself.
-/// - asserts that it remains in startup state with no activity (it should be completely passive).
-/// - initializes the group with membership config including just the one node.
-/// - asserts that the group was able to come online, and that the one node became leader.
 #[test]
 fn test_single_node() {
     init_log();

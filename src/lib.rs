@@ -21,7 +21,7 @@ pub use crate::error::{Error, Result};
 pub use crate::event::{Event, EventHandler};
 pub use crate::metrics::{Metrics, MetricsWatcher};
 pub use crate::options::{Options, OptionsBuilder, Quorum};
-pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, Rpc, VoteRequest, VoteResponse};
+pub use crate::rpc::{HeartbeatRequest, HeartbeatResponse, MoveLeaderRequest, Rpc, VoteRequest, VoteResponse};
 pub use crate::storage::{HardState, Storage};
 pub use crate::task::{TaskSpawner, Thread};
 
@@ -203,6 +203,32 @@ impl<T: ElectionType> Election<T> {
             .map_err(|e| Error::ChannelError(format!("failed to send update options to message channel: {}", e)))?;
         rx.recv()
             .map_err(|e| Error::ChannelError(format!("failed to receive update options result from channel: {}", e)))
+            .and_then(|res| res)?;
+        Ok(())
+    }
+
+    /// Moves leader to `target_node`.
+    #[inline]
+    pub fn move_leader(&self, target_node: T::NodeId) -> Result<()> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.msg_tx
+            .send(Message::MoveLeader { target_node, tx })
+            .map_err(|e| Error::ChannelError(format!("failed to send move_leader to message channel: {}", e)))?;
+        rx.recv()
+            .map_err(|e| Error::ChannelError(format!("failed to receive move_leader result from channel: {}", e)))
+            .and_then(|res| res)?;
+        Ok(())
+    }
+
+    /// Submits a `MoveLeaderRequest` RPC to this node.
+    #[inline]
+    pub fn submit_move_leader_request(&self, req: MoveLeaderRequest<T>) -> Result<()> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.msg_tx.send(Message::MoveLeaderRequest { req, tx }).map_err(|e| {
+            Error::ChannelError(format!("failed to send move_leader request to message channel: {}", e))
+        })?;
+        rx.recv()
+            .map_err(|e| Error::ChannelError(format!("failed to receive move_leader result from channel: {}", e)))
             .and_then(|res| res)?;
         Ok(())
     }

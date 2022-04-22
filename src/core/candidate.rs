@@ -165,6 +165,12 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                                 );
                             }
                         }
+                        Message::MoveLeader { tx, .. } => {
+                            self.core.reject_move_leader(tx);
+                        }
+                        Message::MoveLeaderRequest { tx, .. } => {
+                            self.core.reject_move_leader(tx);
+                        }
                     },
                     Err(e) => match e {
                         RecvTimeoutError::Timeout => {
@@ -263,6 +269,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 term: current_term,
                 factor: vote_factor.clone(),
                 pre_vote: self.pre_vote,
+                move_leader: self.core.in_moving_leader,
             };
 
             let rpc = self.core.rpc.clone();
@@ -346,6 +353,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                     );
                     self.core.set_state(State::Leader, set_prev_state);
                 }
+                self.core.in_moving_leader = false;
                 self.core.report_metrics();
                 return Ok(());
             }

@@ -89,6 +89,7 @@ pub struct ElectionCore<T: ElectionType> {
     hard_state: HardState<T>,
     current_leader: Option<T::NodeId>,
     vote_id: u64,
+    in_moving_leader: bool,
 
     /// The last time a heartbeat was received.
     last_heartbeat: Option<Instant>,
@@ -140,6 +141,7 @@ impl<T: ElectionType> ElectionCore<T> {
             event_handler,
             metrics_reporter,
             task_wait_group: WaitGroup::new(),
+            in_moving_leader: false,
         }
     }
 
@@ -394,16 +396,19 @@ impl<T: ElectionType> ElectionCore<T> {
             return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
         }
 
-        // Do not respond to the request if we've received a heartbeat within the election timeout minimum.
-        if let Some(instant) = self.last_heartbeat {
-            let now = Instant::now();
-            let delta = now.duration_since(instant);
-            if (delta.as_millis() as u64) <= self.options.election_timeout_min() {
-                debug!(
-                    "[Node({})][Term({})] reject vote request received within election timeout minimum",
-                    self.node_id, self.hard_state.current_term
-                );
-                return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
+        // Ignore heartbeat time when moving leader
+        if !msg.move_leader {
+            // Do not respond to the request if we've received a heartbeat within the election timeout minimum.
+            if let Some(instant) = self.last_heartbeat {
+                let now = Instant::now();
+                let delta = now.duration_since(instant);
+                if (delta.as_millis() as u64) <= self.options.election_timeout_min() {
+                    debug!(
+                        "[Node({})][Term({})] reject vote request received within election timeout minimum",
+                        self.node_id, self.hard_state.current_term
+                    );
+                    return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
+                }
             }
         }
 
@@ -507,6 +512,14 @@ impl<T: ElectionType> ElectionCore<T> {
     fn reject_init_with_members(&self, tx: Sender<Result<()>>) {
         let _ = tx.send(Err(Error::NotAllowed(format!(
             "can't init with members in {:?} state",
+            self.state(),
+        ))));
+    }
+
+    #[inline]
+    fn reject_move_leader(&self, tx: Sender<Result<()>>) {
+        let _ = tx.send(Err(Error::NotAllowed(format!(
+            "can't move leader in {:?} state",
             self.state(),
         ))));
     }

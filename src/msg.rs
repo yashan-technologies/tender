@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
-use crate::{ElectionType, Event, Options};
+use crate::{ElectionType, Event, MoveLeaderRequest, Options};
 use crossbeam_channel::Sender;
 use std::collections::HashSet;
 
@@ -31,5 +31,13 @@ pub enum Message<T: ElectionType> {
         error: Option<Error>,
         term: u64,
         state_id: u64,
+    },
+    MoveLeader {
+        target_node: T::NodeId,
+        tx: Sender<Result<()>>,
+    },
+    MoveLeaderRequest {
+        req: MoveLeaderRequest<T>,
+        tx: Sender<Result<()>>,
     },
 }

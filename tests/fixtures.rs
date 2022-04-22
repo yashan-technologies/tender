@@ -8,8 +8,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tender::{
     Election, ElectionType, Error, Event, EventHandler, HardState, HeartbeatRequest, HeartbeatResponse, Metrics,
-    NodeId as ElectionNodeId, Options, Quorum, Result, Rpc, State, Storage, TaskSpawner, Thread, VoteFactor,
-    VoteRequest, VoteResponse, VoteResult,
+    MoveLeaderRequest, NodeId as ElectionNodeId, Options, Quorum, Result, Rpc, State, Storage, TaskSpawner, Thread,
+    VoteFactor, VoteRequest, VoteResponse, VoteResult,
 };
 
 pub type MemElection = Election<MemElectionType>;
@@ -249,6 +249,13 @@ impl MemRouter {
         metrics_watcher.metrics()
     }
 
+    pub fn move_leader(&self, from: NodeId, to: NodeId) {
+        assert_eq!(self.group_id, from.group_id);
+        assert_eq!(self.group_id, to.group_id);
+        let rt = self.routing_table.read();
+        rt.get(&from).unwrap().move_leader(to).unwrap();
+    }
+
     pub fn assert_node_state(&self, node_id: NodeId, state: State, current_term: u64, current_leader: Option<NodeId>) {
         assert_eq!(self.group_id, node_id.group_id);
 
@@ -311,6 +318,23 @@ impl Rpc<MemElectionType> for MemRouter {
 
         let resp = node.submit_vote(msg).map_err(|e| RpcError(e.to_string()))?;
         Ok(resp)
+    }
+
+    fn move_leader(&self, msg: MoveLeaderRequest<MemElectionType>) -> std::result::Result<(), RpcError> {
+        let rt = self.routing_table.read();
+        let node = match rt.get(&msg.target_node_id) {
+            None => {
+                return Err(RpcError(format!(
+                    "target node({}) not found in routing table",
+                    msg.target_node_id
+                )))
+            }
+            Some(n) => n,
+        };
+
+        node.submit_move_leader_request(msg)
+            .map_err(|e| RpcError(e.to_string()))?;
+        Ok(())
     }
 }
 

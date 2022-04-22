@@ -25,6 +25,7 @@ pub struct VoteRequest<T: ElectionType> {
     pub term: u64,
     pub factor: T::VoteFactor,
     pub pre_vote: bool,
+    pub move_leader: bool,
 }
 
 /// Vote response.
@@ -38,10 +39,18 @@ pub struct VoteResponse<T: ElectionType> {
     pub vote_result: VoteResult,
 }
 
+/// MoveLeader request.
+#[derive(Debug)]
+pub struct MoveLeaderRequest<T: ElectionType> {
+    pub target_node_id: T::NodeId,
+    pub term: u64,
+}
+
 /// RPC interfaces used by election.
 pub trait Rpc<T: ElectionType> {
     type Err: Error;
 
     fn heartbeat(&self, msg: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>, Self::Err>;
     fn vote(&self, msg: VoteRequest<T>) -> Result<VoteResponse<T>, Self::Err>;
+    fn move_leader(&self, msg: MoveLeaderRequest<T>) -> Result<(), Self::Err>;
 }

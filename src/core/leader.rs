@@ -1,8 +1,9 @@
 use crate::core::{ElectionCore, State};
+use crate::error::{Error, Result};
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
-use crate::{ElectionType, Event, HeartbeatResponse, Rpc};
-use crossbeam_channel::RecvTimeoutError;
+use crate::{ElectionType, Event, HeartbeatResponse, MoveLeaderRequest, Rpc};
+use crossbeam_channel::{RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
 pub struct Leader<'a, T: ElectionType> {
@@ -96,11 +97,48 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         }
     }
 
+    fn spawn_move_leader(&self, target_node_id: T::NodeId, tx: Sender<Result<()>>) {
+        let current_term = self.core.hard_state.current_term;
+
+        let rpc = self.core.rpc.clone();
+        let node_id = self.core.node_id.clone();
+        let tx2 = tx.clone();
+
+        debug!(
+            "[Node({})][Term({})] send move_leader to node({})",
+            node_id, current_term, target_node_id
+        );
+
+        let req = MoveLeaderRequest {
+            target_node_id,
+            term: current_term,
+        };
+
+        let result = self.core.spawn_task("election-move-leader", move || {
+            match rpc.move_leader(req) {
+                Ok(_) => {
+                    // ignore send error
+                    let _ = tx.send(Ok(()));
+                }
+                Err(e) => {
+                    // ignore send error
+                    let _ = tx.send(Err(Error::RpcError(e.to_string())));
+                }
+            }
+        });
+
+        if let Err(e) = result {
+            // ignore send error
+            let _ = tx2.send(Err(Error::TaskError(e.to_string())));
+        }
+    }
+
     pub fn run(mut self) {
         self.core.increase_state_id();
 
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
+        self.core.in_moving_leader = false;
 
         assert!(self.core.is_state(State::Leader));
         let result = self.core.spawn_event_handling_task(Event::TransitToLeader {
@@ -206,6 +244,16 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                                 }
                             }
                         }
+                    }
+                    Message::MoveLeader { target_node, tx } => {
+                        if !self.core.members.contains(&target_node) {
+                            let _ = tx.send(Err(Error::NotAllowed(format!("{} is not a member", target_node))));
+                        } else {
+                            self.spawn_move_leader(target_node, tx);
+                        }
+                    }
+                    Message::MoveLeaderRequest { tx, .. } => {
+                        self.core.reject_move_leader(tx);
                     }
                 },
                 Err(e) => match e {

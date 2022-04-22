@@ -1,6 +1,7 @@
 use crate::core::{ElectionCore, State};
+use crate::error::{Error, Result};
 use crate::msg::Message;
-use crate::{ElectionType, Event};
+use crate::{ElectionType, Event, MoveLeaderRequest};
 use crossbeam_channel::RecvTimeoutError;
 
 pub struct Follower<'a, T: ElectionType> {
@@ -17,11 +18,38 @@ impl<'a, T: ElectionType> Follower<'a, T> {
         }
     }
 
+    fn handle_move_leader_request(
+        &mut self,
+        msg: MoveLeaderRequest<T>,
+        set_prev_state: Option<&mut bool>,
+    ) -> Result<()> {
+        self.core.check_node(&msg.target_node_id)?;
+
+        if msg.term > self.core.hard_state.current_term {
+            self.core.update_current_term(msg.term, None)?;
+            self.core.report_metrics();
+        }
+
+        if self.transit_event_finished {
+            self.core.set_state(State::Candidate, set_prev_state);
+            self.core.in_moving_leader = true;
+            self.core.current_leader = None;
+            info!(
+                "[Node({})][Term({})] receive move leader request, need to transit to candidate",
+                self.core.node_id, self.core.hard_state.current_term
+            );
+            Ok(())
+        } else {
+            Err(Error::NotAllowed("transit to follower is not finished".to_string()))
+        }
+    }
+
     pub fn run(mut self) {
         self.core.increase_state_id();
 
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
+        self.core.in_moving_leader = false;
 
         assert!(self.core.is_state(State::Follower));
         self.core.next_election_timeout = None;
@@ -115,6 +143,13 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                                 self.core.node_id, self.core.hard_state.current_term, event, term,
                             );
                         }
+                    }
+                    Message::MoveLeader { tx, .. } => {
+                        self.core.reject_move_leader(tx);
+                    }
+                    Message::MoveLeaderRequest { req, tx } => {
+                        let result = self.handle_move_leader_request(req, set_prev_state.as_mut());
+                        let _ = tx.send(result);
                     }
                 },
                 Err(e) => match e {
