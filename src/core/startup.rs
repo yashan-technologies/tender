@@ -1,7 +1,7 @@
 use crate::core::{ElectionCore, MemberConfig, State};
-use crate::error::Result;
+use crate::error::{to_storage_error, Result};
 use crate::msg::Message;
-use crate::{ElectionType, Error, Event, HardState, InitialMode, Storage};
+use crate::{ElectionType, Event, HardState, InitialMode, Storage};
 use crossbeam_channel::RecvTimeoutError;
 use std::collections::HashSet;
 
@@ -51,7 +51,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             self.core
                 .storage
                 .save_hard_state(&hard_state)
-                .map_err(|e| Error::StorageError(e.to_string()))?;
+                .map_err(to_storage_error::<T>)?;
             self.core.hard_state = hard_state;
             self.core.set_state(State::Leader, set_prev_state);
             if initial_mode == InitialMode::AsLeader {

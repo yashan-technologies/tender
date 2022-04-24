@@ -1,6 +1,7 @@
 use crate::core::{ElectionCore, State};
 use crate::error::{Error, Result};
 use crate::msg::Message;
+use crate::util::TryToString;
 use crate::{ElectionType, Event, MoveLeaderRequest};
 use crossbeam_channel::RecvTimeoutError;
 
@@ -40,7 +41,9 @@ impl<'a, T: ElectionType> Follower<'a, T> {
             );
             Ok(())
         } else {
-            Err(Error::NotAllowed("transit to follower is not finished".to_string()))
+            Err(Error::NotAllowed(
+                "transit to follower is not finished".try_to_string()?,
+            ))
         }
     }
 

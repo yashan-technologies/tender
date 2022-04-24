@@ -1,5 +1,5 @@
 use crate::core::{ElectionCore, State};
-use crate::error::{Error, Result};
+use crate::error::{to_rpc_error, Error, Result};
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
 use crate::{ElectionType, Event, HeartbeatResponse, MoveLeaderRequest, Rpc};
@@ -122,14 +122,14 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                 }
                 Err(e) => {
                     // ignore send error
-                    let _ = tx.send(Err(Error::RpcError(e.to_string())));
+                    let _ = tx.send(Err(to_rpc_error::<T>(e)));
                 }
             }
         });
 
         if let Err(e) = result {
             // ignore send error
-            let _ = tx2.send(Err(Error::TaskError(e.to_string())));
+            let _ = tx2.send(Err(e));
         }
     }
 

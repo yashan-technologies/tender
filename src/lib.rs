@@ -5,6 +5,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+mod util;
+
 mod core;
 mod error;
 mod event;

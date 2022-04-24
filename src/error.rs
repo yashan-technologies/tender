@@ -1,3 +1,5 @@
+use crate::{ElectionType, Rpc, Storage};
+use std::collections::TryReserveError;
 use std::fmt;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -15,6 +17,8 @@ pub enum Error {
     InvalidOptions(String),
     ChannelError(String),
     EventError(String),
+    FormatError(fmt::Error),
+    TryReserveError(TryReserveError),
 }
 
 impl std::error::Error for Error {}
@@ -35,6 +39,38 @@ impl fmt::Display for Error {
             Error::InvalidOptions(s) => f.write_str(s),
             Error::ChannelError(s) => f.write_str(s),
             Error::EventError(s) => f.write_str(s),
+            Error::FormatError(e) => write!(f, "{}", e),
+            Error::TryReserveError(e) => write!(f, "{}", e),
         }
+    }
+}
+
+impl From<fmt::Error> for Error {
+    #[inline]
+    fn from(e: fmt::Error) -> Self {
+        Error::FormatError(e)
+    }
+}
+
+impl From<TryReserveError> for Error {
+    #[inline]
+    fn from(e: TryReserveError) -> Self {
+        Error::TryReserveError(e)
+    }
+}
+
+#[inline]
+pub fn to_storage_error<T: ElectionType>(e: <T::Storage as Storage<T>>::Err) -> Error {
+    match try_format!("{}", e) {
+        Ok(s) => Error::StorageError(s),
+        Err(e) => e,
+    }
+}
+
+#[inline]
+pub fn to_rpc_error<T: ElectionType>(e: <T::Rpc as Rpc<T>>::Err) -> Error {
+    match try_format!("{}", e) {
+        Ok(s) => Error::RpcError(s),
+        Err(e) => e,
     }
 }

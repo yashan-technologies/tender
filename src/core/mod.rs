@@ -3,7 +3,7 @@ use crate::core::follower::Follower;
 use crate::core::leader::Leader;
 use crate::core::observer::Observer;
 use crate::core::startup::Startup;
-use crate::error::{Error, Result};
+use crate::error::{to_storage_error, Error, Result};
 use crate::metrics::{Metrics, MetricsReporter};
 use crate::msg::Message;
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
@@ -270,7 +270,7 @@ impl<T: ElectionType> ElectionCore<T> {
             };
             self.storage
                 .save_hard_state(&hard_state)
-                .map_err(|e| Error::StorageError(e.to_string()))?;
+                .map_err(to_storage_error::<T>)?;
             self.hard_state = hard_state;
         }
 
@@ -281,7 +281,7 @@ impl<T: ElectionType> ElectionCore<T> {
     fn save_hard_state(&mut self) -> Result<()> {
         self.storage
             .save_hard_state(&self.hard_state)
-            .map_err(|e| Error::StorageError(e.to_string()))
+            .map_err(to_storage_error::<T>)
     }
 
     #[inline]
@@ -439,10 +439,7 @@ impl<T: ElectionType> ElectionCore<T> {
 
         // Check if candidate's vote factor can be granted.
         // If candidate's vote factor is not granted, then reject.
-        let current_vote_factor = self
-            .storage
-            .load_vote_factor()
-            .map_err(|e| Error::StorageError(e.to_string()))?;
+        let current_vote_factor = self.storage.load_vote_factor().map_err(to_storage_error::<T>)?;
         let vote_result = current_vote_factor.vote(&msg.factor);
         if !vote_result.is_granted() {
             debug!(
