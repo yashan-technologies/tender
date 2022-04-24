@@ -175,9 +175,9 @@ impl<T: ElectionType> Election<T> {
                 initial_mode,
                 tx,
             })
-            .map_err(|e| Error::ChannelError(format!("failed to send initialize to message channel: {}", e)))?;
+            .map_err(|e| try_format_error!(ChannelError, "failed to send initialize to message channel: {}", e))?;
         rx.recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive initialize result from channel: {}", e)))
+            .map_err(|e| try_format_error!(ChannelError, "failed to receive initialize result from channel: {}", e))
             .and_then(|res| res)?;
         Ok(())
     }
@@ -186,12 +186,16 @@ impl<T: ElectionType> Election<T> {
     #[inline]
     pub fn submit_heartbeat(&self, req: HeartbeatRequest<T>) -> Result<HeartbeatResponse<T>> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        self.msg_tx
-            .send(Message::HeartbeatRequest { req, tx })
-            .map_err(|e| Error::ChannelError(format!("failed to send heartbeat request to message channel: {}", e)))?;
+        self.msg_tx.send(Message::HeartbeatRequest { req, tx }).map_err(|e| {
+            try_format_error!(
+                ChannelError,
+                "failed to send heartbeat request to message channel: {}",
+                e
+            )
+        })?;
         let resp = rx
             .recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive heartbeat response from channel: {}", e)))
+            .map_err(|e| try_format_error!(ChannelError, "failed to receive heartbeat response from channel: {}", e))
             .and_then(|res| res)?;
         Ok(resp)
     }
@@ -202,10 +206,10 @@ impl<T: ElectionType> Election<T> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::VoteRequest { req, tx })
-            .map_err(|e| Error::ChannelError(format!("failed to send vote request to message channel: {}", e)))?;
+            .map_err(|e| try_format_error!(ChannelError, "failed to send vote request to message channel: {}", e))?;
         let resp = rx
             .recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive vote response from channel: {}", e)))
+            .map_err(|e| try_format_error!(ChannelError, "failed to receive vote response from channel: {}", e))
             .and_then(|res| res)?;
         Ok(resp)
     }
@@ -216,9 +220,15 @@ impl<T: ElectionType> Election<T> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::UpdateOptions { options, tx })
-            .map_err(|e| Error::ChannelError(format!("failed to send update options to message channel: {}", e)))?;
+            .map_err(|e| try_format_error!(ChannelError, "failed to send update options to message channel: {}", e))?;
         rx.recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive update options result from channel: {}", e)))
+            .map_err(|e| {
+                try_format_error!(
+                    ChannelError,
+                    "failed to receive update options result from channel: {}",
+                    e
+                )
+            })
             .and_then(|res| res)?;
         Ok(())
     }
@@ -229,9 +239,9 @@ impl<T: ElectionType> Election<T> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::MoveLeader { target_node, tx })
-            .map_err(|e| Error::ChannelError(format!("failed to send move_leader to message channel: {}", e)))?;
+            .map_err(|e| try_format_error!(ChannelError, "failed to send move_leader to message channel: {}", e))?;
         rx.recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive move_leader result from channel: {}", e)))
+            .map_err(|e| try_format_error!(ChannelError, "failed to receive move_leader result from channel: {}", e))
             .and_then(|res| res)?;
         Ok(())
     }
@@ -241,10 +251,14 @@ impl<T: ElectionType> Election<T> {
     pub fn submit_move_leader_request(&self, req: MoveLeaderRequest<T>) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx.send(Message::MoveLeaderRequest { req, tx }).map_err(|e| {
-            Error::ChannelError(format!("failed to send move_leader request to message channel: {}", e))
+            try_format_error!(
+                ChannelError,
+                "failed to send move_leader request to message channel: {}",
+                e
+            )
         })?;
         rx.recv()
-            .map_err(|e| Error::ChannelError(format!("failed to receive move_leader result from channel: {}", e)))
+            .map_err(|e| try_format_error!(ChannelError, "failed to receive move_leader result from channel: {}", e))
             .and_then(|res| res)?;
         Ok(())
     }

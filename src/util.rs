@@ -44,3 +44,12 @@ macro_rules! try_format {
         res
     }}
 }
+
+macro_rules! try_format_error {
+    ($e: tt, $($arg:tt)*) => {{
+        match try_format!($($arg)*) {
+            Ok(s) => $crate::error::Error::$e(s),
+            Err(e) => e
+        }
+    }}
+}

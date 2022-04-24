@@ -9,6 +9,7 @@ use crate::msg::Message;
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
+use crate::util::TryToString;
 use crate::wait_group::WaitGroup;
 use crate::{ElectionType, Event, EventHandler, Options, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
@@ -150,7 +151,7 @@ impl<T: ElectionType> ElectionCore<T> {
 
     #[inline]
     pub fn spawn(self) -> Result<T::Thread> {
-        T::Thread::spawn(String::from("election-main"), move || self.main())
+        T::Thread::spawn("election-main".try_to_string()?, move || self.main())
     }
 
     fn main(mut self) {
@@ -252,10 +253,11 @@ impl<T: ElectionType> ElectionCore<T> {
     #[inline]
     fn check_node(&self, node_id: &T::NodeId) -> Result<()> {
         if self.node_id.ne(node_id) {
-            return Err(Error::InvalidTarget(format!(
+            return Err(Error::InvalidTarget(try_format!(
                 "given node id({}) is not the same as this node({})",
-                node_id, self.node_id
-            )));
+                node_id,
+                self.node_id
+            )?));
         } else {
             Ok(())
         }
@@ -290,13 +292,8 @@ impl<T: ElectionType> ElectionCore<T> {
         F: FnOnce(),
         F: Send + 'static,
     {
-        let mut s = String::new();
-        s.try_reserve_exact(name.len())
-            .map_err(|_| Error::MemAllocError(name.len()))?;
-        s.push_str(name);
-
         let wg = self.task_wait_group.clone();
-        self.task_spawner.spawn(s, move || {
+        self.task_spawner.spawn(name.try_to_string()?, move || {
             f();
             drop(wg);
         })
@@ -518,18 +515,20 @@ impl<T: ElectionType> ElectionCore<T> {
 
     #[inline]
     fn reject_init_with_members(&self, tx: Sender<Result<()>>) {
-        let _ = tx.send(Err(Error::NotAllowed(format!(
+        let _ = tx.send(Err(try_format_error!(
+            NotAllowed,
             "can't init with members in {:?} state",
             self.state(),
-        ))));
+        )));
     }
 
     #[inline]
     fn reject_move_leader(&self, tx: Sender<Result<()>>) {
-        let _ = tx.send(Err(Error::NotAllowed(format!(
+        let _ = tx.send(Err(try_format_error!(
+            NotAllowed,
             "can't move leader in {:?} state",
             self.state(),
-        ))));
+        )));
     }
 
     #[inline]

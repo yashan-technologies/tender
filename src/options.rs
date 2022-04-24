@@ -151,18 +151,20 @@ impl OptionsBuilder {
         let election_timeout_min = self.election_timeout_min.unwrap_or(DEFAULT_ELECTION_TIMEOUT_MIN);
         let election_timeout_max = self.election_timeout_max.unwrap_or(DEFAULT_ELECTION_TIMEOUT_MAX);
         if election_timeout_min >= election_timeout_max {
-            return Err(Error::InvalidOptions(format!(
+            return Err(Error::InvalidOptions(try_format!(
                 "election timeout min({}) & max({}) are invalid: max must be greater than min",
-                election_timeout_min, election_timeout_max
-            )));
+                election_timeout_min,
+                election_timeout_max
+            )?));
         }
 
         let heartbeat_interval = self.heartbeat_interval.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL);
         if election_timeout_min <= heartbeat_interval {
-            return Err(Error::InvalidOptions(format!(
+            return Err(Error::InvalidOptions(try_format!(
                 "election_timeout_min({}) must be greater than heartbeat_interval({})",
-                election_timeout_min, heartbeat_interval
-            )));
+                election_timeout_min,
+                heartbeat_interval
+            )?));
         }
 
         let quorum = self.quorum.unwrap_or(Quorum::Major);

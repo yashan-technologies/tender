@@ -1,5 +1,5 @@
 use crate::core::{ElectionCore, State};
-use crate::error::{to_rpc_error, Error, Result};
+use crate::error::{to_rpc_error, Result};
 use crate::msg::Message;
 use crate::rpc::HeartbeatRequest;
 use crate::{ElectionType, Event, HeartbeatResponse, MoveLeaderRequest, Rpc};
@@ -247,7 +247,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     }
                     Message::MoveLeader { target_node, tx } => {
                         if !self.core.members.contains(&target_node) {
-                            let _ = tx.send(Err(Error::NotAllowed(format!("{} is not a member", target_node))));
+                            let _ = tx.send(Err(try_format_error!(NotAllowed, "{} is not a member", target_node)));
                         } else {
                             self.spawn_move_leader(target_node, tx);
                         }
