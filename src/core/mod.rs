@@ -114,7 +114,7 @@ impl<T: ElectionType> ElectionCore<T> {
         info!(
             "[{}][Term({})] start election main thread",
             self.node_id(),
-            self.hard_state.current_term
+            self.current_term()
         );
         self.set_state(State::Startup, None);
 
@@ -187,6 +187,11 @@ impl<T: ElectionType> ElectionCore<T> {
     }
 
     #[inline]
+    fn current_term(&self) -> u64 {
+        self.hard_state.current_term
+    }
+
+    #[inline]
     fn set_hard_state(&mut self, state: HardState<T>) {
         self.hard_state = state;
     }
@@ -228,7 +233,7 @@ impl<T: ElectionType> ElectionCore<T> {
 
     #[inline]
     fn update_current_term(&mut self, new_term: u64, voted_for: Option<T::NodeId>) -> Result<()> {
-        if new_term > self.hard_state.current_term {
+        if new_term > self.current_term() {
             let hard_state = HardState {
                 current_term: new_term,
                 voted_for,
@@ -269,8 +274,8 @@ impl<T: ElectionType> ElectionCore<T> {
     ) -> Result<HeartbeatResponse<T>> {
         self.check_node(&msg.target_node_id)?;
 
-        if msg.term < self.hard_state.current_term {
-            let current_term = self.hard_state.current_term;
+        if msg.term < self.current_term() {
+            let current_term = self.current_term();
             debug!(
                 "[{}][Term({})] heartbeat term({}) from leader({}) is less than current term({})",
                 self.node_id(),
@@ -289,7 +294,7 @@ impl<T: ElectionType> ElectionCore<T> {
         let mut report_metrics = false;
 
         // update current term if needed
-        if self.hard_state.current_term != msg.term {
+        if self.current_term() != msg.term {
             self.update_current_term(msg.term, None)?;
             report_metrics = true;
         }
@@ -301,7 +306,7 @@ impl<T: ElectionType> ElectionCore<T> {
                     info!(
                         "[{}][Term({})] change leader to {}",
                         self.node_id(),
-                        self.hard_state.current_term,
+                        self.current_term(),
                         msg.leader_id
                     );
                 }
@@ -309,7 +314,7 @@ impl<T: ElectionType> ElectionCore<T> {
                     info!(
                         "[{}][Term({})] change leader from {} to {}",
                         self.node_id(),
-                        self.hard_state.current_term,
+                        self.current_term(),
                         old_leader,
                         msg.leader_id
                     );
@@ -325,7 +330,7 @@ impl<T: ElectionType> ElectionCore<T> {
             info!(
                 "[{}][Term({})] received valid heartbeat in {:?} state, so transit to follower",
                 self.node_id(),
-                self.hard_state.current_term,
+                self.current_term(),
                 self.state()
             );
             self.set_state(State::Follower, set_prev_state);
@@ -338,7 +343,7 @@ impl<T: ElectionType> ElectionCore<T> {
 
         Ok(HeartbeatResponse {
             node_id: self.node_id().clone(),
-            term: self.hard_state.current_term,
+            term: self.current_term(),
         })
     }
 
@@ -348,7 +353,7 @@ impl<T: ElectionType> ElectionCore<T> {
             node_id: self.node_id().clone(),
             candidate_id: req.candidate_id,
             vote_id: req.vote_id,
-            term: self.hard_state.current_term,
+            term: self.current_term(),
             pre_vote: req.pre_vote,
             vote_result,
         }
@@ -361,14 +366,14 @@ impl<T: ElectionType> ElectionCore<T> {
     ) -> Result<VoteResponse<T>> {
         self.check_node(&msg.target_node_id)?;
 
-        if msg.term < self.hard_state.current_term {
+        if msg.term < self.current_term() {
             debug!(
                 "[{}][Term({})] vote term({}) from candidate({}) is less than current term({})",
                 self.node_id(),
-                self.hard_state.current_term,
+                self.current_term(),
                 msg.term,
                 msg.candidate_id,
-                self.hard_state.current_term
+                self.current_term()
             );
             return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
         }
@@ -383,7 +388,7 @@ impl<T: ElectionType> ElectionCore<T> {
                     debug!(
                         "[{}][Term({})] reject vote request received within election timeout minimum",
                         self.node_id(),
-                        self.hard_state.current_term
+                        self.current_term()
                     );
                     return Ok(self.create_vote_response(msg, VoteResult::NotGranted));
                 }
@@ -393,7 +398,7 @@ impl<T: ElectionType> ElectionCore<T> {
         // Per spec, if we observe a term greater than our own outside of the election timeout
         // minimum, then we must update term & immediately become follower. We still need to
         // do vote checking after this.
-        if msg.term > self.hard_state.current_term {
+        if msg.term > self.current_term() {
             self.update_current_term(msg.term, None)?;
             if !self.is_state(State::Follower) && !self.is_state(State::Observer) {
                 #[allow(clippy::needless_option_as_deref)]
@@ -402,17 +407,17 @@ impl<T: ElectionType> ElectionCore<T> {
                 info!(
                     "[{}][Term({})] vote request term({}) is greater than current term({}), so transit to follower",
                     self.node_id(),
-                    self.hard_state.current_term,
+                    self.current_term(),
                     msg.term,
-                    self.hard_state.current_term
+                    self.current_term()
                 );
             } else {
                 info!(
                     "[{}][Term({})] vote request term({}) is greater than current term({})",
                     self.node_id(),
-                    self.hard_state.current_term,
+                    self.current_term(),
                     msg.term,
-                    self.hard_state.current_term
+                    self.current_term()
                 );
             }
             self.report_metrics();
@@ -426,7 +431,7 @@ impl<T: ElectionType> ElectionCore<T> {
             debug!(
                 "[{}][Term({})] reject vote request as candidate({})'s vote result is {:?}",
                 self.node_id(),
-                self.hard_state.current_term,
+                self.current_term(),
                 msg.candidate_id,
                 vote_result
             );
@@ -439,7 +444,7 @@ impl<T: ElectionType> ElectionCore<T> {
             debug!(
                 "[{}][Term({})] voted for pre-candidate({})",
                 self.node_id(),
-                self.hard_state.current_term,
+                self.current_term(),
                 msg.candidate_id
             );
             return Ok(self.create_vote_response(msg, vote_result));
@@ -454,14 +459,14 @@ impl<T: ElectionType> ElectionCore<T> {
                     debug!(
                         "[{}][Term({})] granted vote for candidate({}) and revert to follower",
                         self.node_id(),
-                        self.hard_state.current_term,
+                        self.current_term(),
                         msg.candidate_id
                     );
                 } else {
                     debug!(
                         "[{}][Term({})] granted vote for candidate({})",
                         self.node_id(),
-                        self.hard_state.current_term,
+                        self.current_term(),
                         msg.candidate_id
                     );
                 }
@@ -474,7 +479,7 @@ impl<T: ElectionType> ElectionCore<T> {
                 debug!(
                     "[{}][Term({})] reject vote request for candidate({}) because already voted for node({})",
                     self.node_id(),
-                    self.hard_state.current_term,
+                    self.current_term(),
                     msg.candidate_id,
                     candidate_id
                 );
@@ -488,7 +493,7 @@ impl<T: ElectionType> ElectionCore<T> {
         let handler = self.event_handler.clone();
         let ev = event.clone();
         let tx = self.msg_tx.clone();
-        let term = self.hard_state.current_term;
+        let term = self.current_term();
         let state_id = self.state_id();
         let result = self.spawn_task("election-event-handler", move || {
             let result = handler.handle_event(ev.clone());
@@ -504,7 +509,7 @@ impl<T: ElectionType> ElectionCore<T> {
             error!(
                 "[{}][Term({})] failed to spawn task to for event ({:?}): {}",
                 self.node_id(),
-                self.hard_state.current_term,
+                self.current_term(),
                 event,
                 e
             );
@@ -534,7 +539,7 @@ impl<T: ElectionType> ElectionCore<T> {
     fn report_metrics(&mut self) {
         self.metrics_reporter.report(Metrics {
             state: self.state(),
-            current_term: self.hard_state.current_term,
+            current_term: self.current_term(),
             current_leader: self.current_leader.clone(),
         })
     }

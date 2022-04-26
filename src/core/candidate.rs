@@ -47,7 +47,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             info!(
                 "[{}][Term({})] start the pre-candidate loop",
                 self.core.node_id(),
-                self.core.hard_state.current_term
+                self.core.current_term()
             );
         } else {
             assert!(self.core.is_state(State::Candidate));
@@ -55,7 +55,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             info!(
                 "[{}][Term({})] start the candidate loop",
                 self.core.node_id(),
-                self.core.hard_state.current_term
+                self.core.current_term()
             );
         }
 
@@ -77,7 +77,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                     error!(
                         "[{}][Term({})] election is shutting down caused by fatal storage error: {}",
                         self.core.node_id(),
-                        self.core.hard_state.current_term,
+                        self.core.current_term(),
                         e
                     );
                     self.core.set_state(State::Shutdown, set_prev_state.as_mut());
@@ -103,7 +103,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                                 debug!(
                                     "[{}][Term({})] failed to handle heartbeat request: {}",
                                     self.core.node_id(),
-                                    self.core.hard_state.current_term,
+                                    self.core.current_term(),
                                     e
                                 );
                             }
@@ -116,7 +116,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             debug!(
                                 "[{}][Term({})] received vote request: {:?}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 req
                             );
 
@@ -125,7 +125,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                                 debug!(
                                     "[{}][Term({})] failed to handle vote request: {}",
                                     self.core.node_id(),
-                                    self.core.hard_state.current_term,
+                                    self.core.current_term(),
                                     e
                                 );
                             }
@@ -135,14 +135,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             debug!(
                                 "[{}][Term({})] received vote response : {:?}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 resp
                             );
                             if let Err(e) = self.handle_vote_response(resp, set_prev_state.as_mut()) {
                                 debug!(
                                     "[{}][Term({})] failed to handle vote response: {}",
                                     self.core.node_id(),
-                                    self.core.hard_state.current_term,
+                                    self.core.current_term(),
                                     e
                                 );
                             }
@@ -154,7 +154,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             info!(
                                 "[{}][Term({})] election update options: {:?}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 options
                             );
                             self.core.update_options(options);
@@ -164,7 +164,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             info!(
                                 "[{}][Term({})] election received shutdown message",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term
+                                self.core.current_term()
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
@@ -173,7 +173,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                                 error!(
                                     "[{}][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                     self.core.node_id(),
-                                    self.core.hard_state.current_term,
+                                    self.core.current_term(),
                                     event,
                                     term,
                                     e
@@ -196,7 +196,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             info!(
                                 "[{}][Term({})] the election message channel is disconnected",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term
+                                self.core.current_term()
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
@@ -217,7 +217,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
         debug!(
             "[{}][Term({})] quorum is {:?}, votes granted({}/{})",
             self.core.node_id(),
-            self.core.hard_state.current_term,
+            self.core.current_term(),
             self.core.options.quorum(),
             self.votes_granted,
             self.votes_needed,
@@ -225,7 +225,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
     }
 
     fn spawn_parallel_vote_request(&mut self) {
-        let current_term = self.core.hard_state.current_term;
+        let current_term = self.core.current_term();
 
         let vote_factor = match self.core.storage.load_vote_factor() {
             Ok(factor) => factor,
@@ -301,7 +301,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             debug!(
                 "[{}][Term({})] vote id is {}, so ignore vote response: {:?}",
                 self.core.node_id(),
-                self.core.hard_state.current_term,
+                self.core.current_term(),
                 self.core.vote_id,
                 msg
             );
@@ -309,14 +309,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
         }
 
         // If peer's term is greater than current term, revert to follower state.
-        if msg.term > self.core.hard_state.current_term {
+        if msg.term > self.core.current_term() {
             self.core.update_current_term(msg.term, None)?;
             self.core.current_leader = None;
             self.core.set_state(State::Follower, set_prev_state);
             self.core.report_metrics();
             info!(
                 "[{}][Term({})] revert to follower due to greater term({}) observed in vote response then current term({})",
-                self.core.node_id(), self.core.hard_state.current_term, msg.term, self.core.hard_state.current_term
+                self.core.node_id(), self.core.current_term(), msg.term, self.core.current_term()
             );
             return Ok(());
         }
@@ -329,7 +329,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             debug!(
                 "[{}][Term({})] votes granted({}/{})",
                 self.core.node_id(),
-                self.core.hard_state.current_term,
+                self.core.current_term(),
                 self.votes_granted,
                 self.votes_needed,
             );
@@ -339,14 +339,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                     info!(
                         "[{}][Term({})] minimum number of pre-votes have been received, so transit to candidate",
                         self.core.node_id(),
-                        self.core.hard_state.current_term
+                        self.core.current_term()
                     );
                     self.core.set_state(State::Candidate, set_prev_state);
                 } else {
                     info!(
                         "[{}][Term({})] minimum number of votes have been received, so transit to leader",
                         self.core.node_id(),
-                        self.core.hard_state.current_term
+                        self.core.current_term()
                     );
                     self.core.set_state(State::Leader, set_prev_state);
                 }

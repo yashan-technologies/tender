@@ -23,7 +23,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
         assert!(self.core.is_state(State::Observer));
         self.core.next_election_timeout = None;
         let _result = self.core.spawn_event_handling_task(Event::TransitToObserver {
-            term: self.core.hard_state.current_term,
+            term: self.core.current_term(),
             prev_state: self.core.prev_state(),
         });
         self.core.report_metrics();
@@ -31,7 +31,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
         info!(
             "[{}][Term({})] start the observer loop",
             self.core.node_id(),
-            self.core.hard_state.current_term
+            self.core.current_term()
         );
 
         loop {
@@ -47,7 +47,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         trace!(
                             "[{}][Term({})] receive heartbeat: {:?}",
                             self.core.node_id(),
-                            self.core.hard_state.current_term,
+                            self.core.current_term(),
                             req
                         );
 
@@ -56,7 +56,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle heartbeat request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -71,7 +71,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle vote request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -87,7 +87,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         info!(
                             "[{}][Term({})] election update options: {:?}",
                             self.core.node_id(),
-                            self.core.hard_state.current_term,
+                            self.core.current_term(),
                             options
                         );
                         self.core.update_options(options);
@@ -97,7 +97,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         info!(
                             "[{}][Term({})] election received shutdown message",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
@@ -111,7 +111,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                             error!(
                                 "[{}][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 event,
                                 term,
                                 e
@@ -120,7 +120,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                             debug!(
                                 "[{}][Term({})] event ({:?}) in term {} is handled",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 event,
                                 term,
                             );
@@ -141,7 +141,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         info!(
                             "[{}][Term({})] the election message channel is disconnected",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }

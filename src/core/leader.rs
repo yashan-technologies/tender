@@ -38,7 +38,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
     }
 
     fn spawn_parallel_heartbeat(&self) {
-        let current_term = self.core.hard_state.current_term;
+        let current_term = self.core.current_term();
 
         for member in self.core.members.peers() {
             let req = HeartbeatRequest {
@@ -83,18 +83,18 @@ impl<'a, T: ElectionType> Leader<'a, T> {
             return;
         }
 
-        if resp.term > self.core.hard_state.current_term {
+        if resp.term > self.core.current_term() {
             info!(
                 "[{}][Term({})] revert to follower due to a newer term from heartbeat response",
                 self.core.node_id(),
-                self.core.hard_state.current_term
+                self.core.current_term()
             );
             self.core.set_state(State::Follower, set_prev_state);
         }
     }
 
     fn spawn_move_leader(&self, target_node_id: T::NodeId, tx: Sender<Result<()>>) {
-        let current_term = self.core.hard_state.current_term;
+        let current_term = self.core.current_term();
 
         let rpc = self.core.rpc.clone();
         let node_id = self.core.node_id().clone();
@@ -138,13 +138,13 @@ impl<'a, T: ElectionType> Leader<'a, T> {
 
         assert!(self.core.is_state(State::Leader));
         let result = self.core.spawn_event_handling_task(Event::TransitToLeader {
-            term: self.core.hard_state.current_term,
+            term: self.core.current_term(),
         });
         if result.is_err() {
             error!(
                 "[{}][Term({})] failed to handle TransitToLeader event, so transit to follower",
                 self.core.node_id(),
-                self.core.hard_state.current_term
+                self.core.current_term()
             );
             // Do not set prev_state, because we want keep prev_state unchanged
             self.core.set_state(State::Follower, None);
@@ -161,7 +161,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         info!(
             "[{}][Term({})] start the leader loop",
             self.core.node_id(),
-            self.core.hard_state.current_term
+            self.core.current_term()
         );
 
         // Send the first heartbeat
@@ -182,7 +182,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle heartbeat request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -197,7 +197,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle vote request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -213,7 +213,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                         info!(
                             "[{}][Term({})] election update options: {:?}",
                             self.core.node_id(),
-                            self.core.hard_state.current_term,
+                            self.core.current_term(),
                             options
                         );
                         self.core.update_options(options);
@@ -223,7 +223,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                         info!(
                             "[{}][Term({})] election received shutdown message",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
@@ -237,7 +237,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                             error!(
                                 "[{}][Term({})] failed to handle event ({:?}): {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 event,
                                 e
                             );
@@ -246,7 +246,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                                     error!(
                                         "[{}][Term({})] failed to handle TransitToLeader event, so transit to follower",
                                         self.core.node_id(),
-                                        self.core.hard_state.current_term
+                                        self.core.current_term()
                                     );
                                     // Do not set prev_state, because we want keep prev_state unchanged
                                     self.core.set_state(State::Follower, None);
@@ -275,7 +275,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                         info!(
                             "[{}][Term({})] the election message channel is disconnected",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }

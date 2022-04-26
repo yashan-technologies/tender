@@ -26,7 +26,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
     ) -> Result<()> {
         self.core.check_node(&msg.target_node_id)?;
 
-        if msg.term > self.core.hard_state.current_term {
+        if msg.term > self.core.current_term() {
             self.core.update_current_term(msg.term, None)?;
             self.core.report_metrics();
         }
@@ -38,7 +38,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
             info!(
                 "[{}][Term({})] receive move leader request, need to transit to candidate",
                 self.core.node_id(),
-                self.core.hard_state.current_term
+                self.core.current_term()
             );
             Ok(())
         } else {
@@ -58,7 +58,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
         assert!(self.core.is_state(State::Follower));
         self.core.next_election_timeout = None;
         let _result = self.core.spawn_event_handling_task(Event::TransitToFollower {
-            term: self.core.hard_state.current_term,
+            term: self.core.current_term(),
             prev_state: self.core.prev_state(),
         });
         self.core.report_metrics();
@@ -66,7 +66,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
         info!(
             "[{}][Term({})] start the follower loop",
             self.core.node_id(),
-            self.core.hard_state.current_term
+            self.core.current_term()
         );
 
         loop {
@@ -82,7 +82,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                         trace!(
                             "[{}][Term({})] received heartbeat: {:?}",
                             self.core.node_id(),
-                            self.core.hard_state.current_term,
+                            self.core.current_term(),
                             req
                         );
 
@@ -91,7 +91,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle heartbeat request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -106,7 +106,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             debug!(
                                 "[{}][Term({})] failed to handle vote request: {}",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 e
                             );
                         }
@@ -122,7 +122,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                         info!(
                             "[{}][Term({})] election update options: {:?}",
                             self.core.node_id(),
-                            self.core.hard_state.current_term,
+                            self.core.current_term(),
                             options
                         );
                         self.core.update_options(options);
@@ -132,7 +132,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                         info!(
                             "[{}][Term({})] election received shutdown message",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
@@ -146,7 +146,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             error!(
                                 "[{}][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 event,
                                 term,
                                 e
@@ -157,7 +157,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             debug!(
                                 "[{}][Term({})] event ({:?}) in term {} is handled",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term,
+                                self.core.current_term(),
                                 event,
                                 term,
                             );
@@ -179,14 +179,14 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             info!(
                                 "[{}][Term({})] an election timeout is hit, need to transit to pre-candidate",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term
+                                self.core.current_term()
                             );
                         } else {
                             self.core.next_election_timeout = None;
                             debug!(
                                 "[{}][Term({})] an election timeout is hit, but TransitToFollower is not finished",
                                 self.core.node_id(),
-                                self.core.hard_state.current_term
+                                self.core.current_term()
                             );
                         }
                     }
@@ -194,7 +194,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                         info!(
                             "[{}][Term({})] the election message channel is disconnected",
                             self.core.node_id(),
-                            self.core.hard_state.current_term
+                            self.core.current_term()
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
