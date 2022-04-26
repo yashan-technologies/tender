@@ -45,7 +45,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             assert!(self.core.is_state(State::PreCandidate));
             let _result = self.core.spawn_event_handling_task(Event::TransitToPreCandidate);
             info!(
-                "[Node({})][Term({})] start the pre-candidate loop",
+                "[{}][Term({})] start the pre-candidate loop",
                 self.core.node_id(),
                 self.core.hard_state.current_term
             );
@@ -53,7 +53,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             assert!(self.core.is_state(State::Candidate));
             let _result = self.core.spawn_event_handling_task(Event::TransitToCandidate);
             info!(
-                "[Node({})][Term({})] start the candidate loop",
+                "[{}][Term({})] start the candidate loop",
                 self.core.node_id(),
                 self.core.hard_state.current_term
             );
@@ -75,7 +75,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 self.core.hard_state.voted_for = Some(self.core.node_id().clone());
                 if let Err(e) = self.core.storage.save_hard_state(&self.core.hard_state) {
                     error!(
-                        "[Node({})][Term({})] election is shutting down caused by fatal storage error: {}",
+                        "[{}][Term({})] election is shutting down caused by fatal storage error: {}",
                         self.core.node_id(),
                         self.core.hard_state.current_term,
                         e
@@ -101,7 +101,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             let result = self.core.handle_heartbeat(req, set_prev_state.as_mut());
                             if let Err(ref e) = result {
                                 debug!(
-                                    "[Node({})][Term({})] failed to handle heartbeat request: {}",
+                                    "[{}][Term({})] failed to handle heartbeat request: {}",
                                     self.core.node_id(),
                                     self.core.hard_state.current_term,
                                     e
@@ -114,7 +114,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         }
                         Message::VoteRequest { req, tx } => {
                             debug!(
-                                "[Node({})][Term({})] received vote request: {:?}",
+                                "[{}][Term({})] received vote request: {:?}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 req
@@ -123,7 +123,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                             let result = self.core.handle_vote_request(req, set_prev_state.as_mut());
                             if let Err(ref e) = result {
                                 debug!(
-                                    "[Node({})][Term({})] failed to handle vote request: {}",
+                                    "[{}][Term({})] failed to handle vote request: {}",
                                     self.core.node_id(),
                                     self.core.hard_state.current_term,
                                     e
@@ -133,14 +133,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         }
                         Message::VoteResponse(resp) => {
                             debug!(
-                                "[Node({})][Term({})] received vote response : {:?}",
+                                "[{}][Term({})] received vote response : {:?}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 resp
                             );
                             if let Err(e) = self.handle_vote_response(resp, set_prev_state.as_mut()) {
                                 debug!(
-                                    "[Node({})][Term({})] failed to handle vote response: {}",
+                                    "[{}][Term({})] failed to handle vote response: {}",
                                     self.core.node_id(),
                                     self.core.hard_state.current_term,
                                     e
@@ -152,7 +152,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!(
-                                "[Node({})][Term({})] election update options: {:?}",
+                                "[{}][Term({})] election update options: {:?}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 options
@@ -162,7 +162,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         }
                         Message::Shutdown => {
                             info!(
-                                "[Node({})][Term({})] election received shutdown message",
+                                "[{}][Term({})] election received shutdown message",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term
                             );
@@ -171,7 +171,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
-                                    "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
+                                    "[{}][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                     self.core.node_id(),
                                     self.core.hard_state.current_term,
                                     event,
@@ -194,7 +194,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         }
                         RecvTimeoutError::Disconnected => {
                             info!(
-                                "[Node({})][Term({})] the election message channel is disconnected",
+                                "[{}][Term({})] the election message channel is disconnected",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term
                             );
@@ -215,7 +215,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
         self.votes_granted = 1; // vote for ourselves
 
         debug!(
-            "[Node({})][Term({})] quorum is {:?}, votes granted({}/{})",
+            "[{}][Term({})] quorum is {:?}, votes granted({}/{})",
             self.core.node_id(),
             self.core.hard_state.current_term,
             self.core.options.quorum(),
@@ -231,7 +231,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             Ok(factor) => factor,
             Err(e) => {
                 warn!(
-                    "[Node({})][Term({})] failed to get vote factor: {}",
+                    "[{}][Term({})] failed to get vote factor: {}",
                     self.core.node_id(),
                     current_term,
                     e
@@ -247,14 +247,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
 
         if self.pre_vote {
             debug!(
-                "[Node({})][Term({})] start to send pre-vote request to all nodes({})",
+                "[{}][Term({})] start to send pre-vote request to all nodes({})",
                 self.core.node_id(),
                 current_term,
                 peers.len()
             );
         } else {
             debug!(
-                "[Node({})][Term({})] start to send vote request to all nodes({})",
+                "[{}][Term({})] start to send vote request to all nodes({})",
                 self.core.node_id(),
                 current_term,
                 peers.len()
@@ -286,7 +286,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 }
                 Err(e) => {
                     warn!(
-                        "[Node({})][Term({})] failed to send vote request to node({}): {}",
+                        "[{}][Term({})] failed to send vote request to node({}): {}",
                         node_id, current_term, target_node_id, e
                     );
                 }
@@ -299,7 +299,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
 
         if self.core.vote_id != msg.vote_id {
             debug!(
-                "[Node({})][Term({})] vote id is {}, so ignore vote response: {:?}",
+                "[{}][Term({})] vote id is {}, so ignore vote response: {:?}",
                 self.core.node_id(),
                 self.core.hard_state.current_term,
                 self.core.vote_id,
@@ -315,7 +315,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             self.core.set_state(State::Follower, set_prev_state);
             self.core.report_metrics();
             info!(
-                "[Node({})][Term({})] revert to follower due to greater term({}) observed in vote response then current term({})",
+                "[{}][Term({})] revert to follower due to greater term({}) observed in vote response then current term({})",
                 self.core.node_id(), self.core.hard_state.current_term, msg.term, self.core.hard_state.current_term
             );
             return Ok(());
@@ -327,7 +327,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             }
 
             debug!(
-                "[Node({})][Term({})] votes granted({}/{})",
+                "[{}][Term({})] votes granted({}/{})",
                 self.core.node_id(),
                 self.core.hard_state.current_term,
                 self.votes_granted,
@@ -337,14 +337,14 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             if self.votes_granted >= self.votes_needed {
                 if self.pre_vote {
                     info!(
-                        "[Node({})][Term({})] minimum number of pre-votes have been received, so transit to candidate",
+                        "[{}][Term({})] minimum number of pre-votes have been received, so transit to candidate",
                         self.core.node_id(),
                         self.core.hard_state.current_term
                     );
                     self.core.set_state(State::Candidate, set_prev_state);
                 } else {
                     info!(
-                        "[Node({})][Term({})] minimum number of votes have been received, so transit to leader",
+                        "[{}][Term({})] minimum number of votes have been received, so transit to leader",
                         self.core.node_id(),
                         self.core.hard_state.current_term
                     );

@@ -33,7 +33,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
         if initial_mode == InitialMode::AsObserver {
             self.core.set_state(State::Observer, set_prev_state);
             info!(
-                "[Node({})][Term({})] this node is initialized with {} members, and transit to observer",
+                "[{}][Term({})] this node is initialized with {} members, and transit to observer",
                 self.core.node_id(),
                 self.core.hard_state.current_term,
                 member_num
@@ -41,7 +41,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
         } else if initial_mode == InitialMode::AsCandidate {
             self.core.set_state(State::PreCandidate, set_prev_state);
             info!(
-                "[Node({})][Term({})] this node is initialized with {} members, and transit to pre-candidate",
+                "[{}][Term({})] this node is initialized with {} members, and transit to pre-candidate",
                 self.core.node_id(),
                 self.core.hard_state.current_term,
                 member_num
@@ -59,14 +59,15 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             self.core.set_state(State::Leader, set_prev_state);
             if initial_mode == InitialMode::AsLeader {
                 info!(
-                    "[Node({})][Term({})] this node is forced to be leader",
+                    "[{}][Term({})] this node is forced to be leader",
                     self.core.node_id(),
                     self.core.hard_state.current_term
                 );
             } else {
                 info!(
-                    "[Node({})][Term({})] this node is initialized without other members, so directly transit to leader",
-                    self.core.node_id(), self.core.hard_state.current_term
+                    "[{}][Term({})] this node is initialized without other members, so directly transit to leader",
+                    self.core.node_id(),
+                    self.core.hard_state.current_term
                 );
             }
         } else {
@@ -74,7 +75,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             // because we need to ensure that restarted nodes don't disrupt a stable cluster.
             self.core.set_state(State::Follower, set_prev_state);
             info!(
-                "[Node({})][Term({})] this node is initialized with {} members, and transit to follower",
+                "[{}][Term({})] this node is initialized with {} members, and transit to follower",
                 self.core.node_id(),
                 self.core.hard_state.current_term,
                 member_num
@@ -100,7 +101,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             Ok(s) => s,
             Err(e) => {
                 error!(
-                    "[Node({})][Term({})] this node is shutting down caused by fatal storage error: {}",
+                    "[{}][Term({})] this node is shutting down caused by fatal storage error: {}",
                     self.core.node_id(),
                     self.core.hard_state.current_term,
                     e
@@ -113,7 +114,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
         self.core.report_metrics();
 
         info!(
-            "[Node({})][Term({})] start the startup loop",
+            "[{}][Term({})] start the startup loop",
             self.core.node_id(),
             self.core.hard_state.current_term
         );
@@ -137,7 +138,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         }
                         Message::UpdateOptions { options, tx } => {
                             info!(
-                                "[Node({})][Term({})] election update options: {:?}",
+                                "[{}][Term({})] election update options: {:?}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 options
@@ -147,7 +148,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         }
                         Message::Shutdown => {
                             info!(
-                                "[Node({})][Term({})] election received shutdown message",
+                                "[{}][Term({})] election received shutdown message",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term
                             );
@@ -156,7 +157,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         Message::EventHandlingResult { event, error, term, .. } => {
                             if let Some(e) = error {
                                 error!(
-                                    "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
+                                    "[{}][Term({})] failed to handle event ({:?}) in term {}: {} ",
                                     self.core.node_id(),
                                     self.core.hard_state.current_term,
                                     event,
@@ -194,7 +195,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!(
-                            "[Node({})][Term({})] the election message channel is disconnected",
+                            "[{}][Term({})] the election message channel is disconnected",
                             self.core.node_id(),
                             self.core.hard_state.current_term
                         );

@@ -53,7 +53,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
             let target_node_id = member.clone();
 
             trace!(
-                "[Node({})][Term({})] send heartbeat to node({})",
+                "[{}][Term({})] send heartbeat to node({})",
                 node_id,
                 current_term,
                 member
@@ -67,7 +67,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     }
                     Err(e) => {
                         warn!(
-                            "[Node({})][Term({})] failed to send heartbeat request to {}: {}",
+                            "[{}][Term({})] failed to send heartbeat request to {}: {}",
                             node_id, current_term, target_node_id, e
                         );
                     }
@@ -85,7 +85,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
 
         if resp.term > self.core.hard_state.current_term {
             info!(
-                "[Node({})][Term({})] revert to follower due to a newer term from heartbeat response",
+                "[{}][Term({})] revert to follower due to a newer term from heartbeat response",
                 self.core.node_id(),
                 self.core.hard_state.current_term
             );
@@ -101,7 +101,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         let tx2 = tx.clone();
 
         debug!(
-            "[Node({})][Term({})] send move_leader to node({})",
+            "[{}][Term({})] send move_leader to node({})",
             node_id, current_term, target_node_id
         );
 
@@ -142,7 +142,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         });
         if result.is_err() {
             error!(
-                "[Node({})][Term({})] failed to handle TransitToLeader event, so transit to follower",
+                "[{}][Term({})] failed to handle TransitToLeader event, so transit to follower",
                 self.core.node_id(),
                 self.core.hard_state.current_term
             );
@@ -159,7 +159,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         self.core.report_metrics();
 
         info!(
-            "[Node({})][Term({})] start the leader loop",
+            "[{}][Term({})] start the leader loop",
             self.core.node_id(),
             self.core.hard_state.current_term
         );
@@ -180,7 +180,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                         let result = self.core.handle_heartbeat(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!(
-                                "[Node({})][Term({})] failed to handle heartbeat request: {}",
+                                "[{}][Term({})] failed to handle heartbeat request: {}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 e
@@ -195,7 +195,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                         let result = self.core.handle_vote_request(req, set_prev_state.as_mut());
                         if let Err(ref e) = result {
                             debug!(
-                                "[Node({})][Term({})] failed to handle vote request: {}",
+                                "[{}][Term({})] failed to handle vote request: {}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 e
@@ -211,7 +211,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     }
                     Message::UpdateOptions { options, tx } => {
                         info!(
-                            "[Node({})][Term({})] election update options: {:?}",
+                            "[{}][Term({})] election update options: {:?}",
                             self.core.node_id(),
                             self.core.hard_state.current_term,
                             options
@@ -221,7 +221,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     }
                     Message::Shutdown => {
                         info!(
-                            "[Node({})][Term({})] election received shutdown message",
+                            "[{}][Term({})] election received shutdown message",
                             self.core.node_id(),
                             self.core.hard_state.current_term
                         );
@@ -235,7 +235,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     } => {
                         if let Some(e) = error {
                             error!(
-                                "[Node({})][Term({})] failed to handle event ({:?}): {}",
+                                "[{}][Term({})] failed to handle event ({:?}): {}",
                                 self.core.node_id(),
                                 self.core.hard_state.current_term,
                                 event,
@@ -244,8 +244,9 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                             if let Event::TransitToLeader { .. } = event {
                                 if self.core.state_id() == state_id {
                                     error!(
-                                        "[Node({})][Term({})] failed to handle TransitToLeader event, so transit to follower",
-                                        self.core.node_id(),self.core.hard_state.current_term
+                                        "[{}][Term({})] failed to handle TransitToLeader event, so transit to follower",
+                                        self.core.node_id(),
+                                        self.core.hard_state.current_term
                                     );
                                     // Do not set prev_state, because we want keep prev_state unchanged
                                     self.core.set_state(State::Follower, None);
@@ -272,7 +273,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     }
                     RecvTimeoutError::Disconnected => {
                         info!(
-                            "[Node({})][Term({})] the election message channel is disconnected",
+                            "[{}][Term({})] the election message channel is disconnected",
                             self.core.node_id(),
                             self.core.hard_state.current_term
                         );

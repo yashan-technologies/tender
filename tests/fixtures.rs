@@ -41,7 +41,7 @@ impl ElectionNodeId for NodeId {
 
 impl Display for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}-{}", self.group_id, self.group_node_id)
+        write!(f, "NodeId({}-{})", self.group_id, self.group_node_id)
     }
 }
 
