@@ -2,6 +2,7 @@ use crate::{ElectionType, Rpc, Storage};
 use std::collections::TryReserveError;
 use std::fmt;
 
+/// The result of election process.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error related to election.
