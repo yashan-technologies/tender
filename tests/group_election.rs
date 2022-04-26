@@ -1,7 +1,6 @@
 mod fixtures;
 
 use fixtures::{init_log, MemRouter, MemVoteFactor, NodeId};
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -27,7 +26,7 @@ fn test_election() {
     mem_router.assert_node_state(node2, State::Startup, 0, None);
     mem_router.assert_node_state(node3, State::Startup, 0, None);
 
-    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+    let members = vec![node1, node2, node3];
 
     mem_router.init_node(node1, members.clone(), InitialMode::AsLeader);
     mem_router.init_node(node2, members.clone(), InitialMode::Normal);
@@ -75,7 +74,7 @@ fn test_election_with_quorum() {
     mem_router.assert_node_state(node2, State::Startup, 0, None);
     mem_router.assert_node_state(node3, State::Startup, 0, None);
 
-    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+    let members = vec![node1, node2, node3];
 
     mem_router.init_node(node1, members.clone(), InitialMode::AsLeader);
     mem_router.init_node(node2, members.clone(), InitialMode::Normal);
@@ -122,7 +121,7 @@ fn test_election_with_observer() {
     mem_router.assert_node_state(node2, State::Startup, 0, None);
     mem_router.assert_node_state(node3, State::Startup, 0, None);
 
-    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+    let members = vec![node1, node2, node3];
 
     mem_router.init_node(node1, members.clone(), InitialMode::AsLeader);
     mem_router.init_node(node2, members.clone(), InitialMode::Normal);
@@ -170,7 +169,7 @@ fn test_election_with_initial_candidate() {
     mem_router.assert_node_state(node2, State::Startup, 0, None);
     mem_router.assert_node_state(node3, State::Startup, 0, None);
 
-    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+    let members = vec![node1, node2, node3];
 
     mem_router.init_node(node1, members.clone(), InitialMode::Normal);
     mem_router.init_node(node2, members.clone(), InitialMode::Normal);
@@ -201,7 +200,7 @@ fn test_move_leader() {
     mem_router.assert_node_state(node2, State::Startup, 0, None);
     mem_router.assert_node_state(node3, State::Startup, 0, None);
 
-    let members: HashSet<_> = [node1, node2, node3].into_iter().collect();
+    let members = vec![node1, node2, node3];
 
     mem_router.init_node(node1, members.clone(), InitialMode::AsLeader);
     mem_router.init_node(node2, members.clone(), InitialMode::Normal);

@@ -9,14 +9,10 @@ use crossbeam_channel::RecvTimeoutError;
 pub struct Candidate<'a, T: ElectionType> {
     core: &'a mut ElectionCore<T>,
     pre_vote: bool,
-    // The number of votes needed from the old (current) member config in order to become leader.
-    votes_needed_old: usize,
-    // The number of votes which have been granted by peer nodes of the old (current) member config.
-    votes_granted_old: usize,
-    // The number of votes needed from the new member config in order to become leader (if applicable).
-    votes_needed_new: usize,
-    // The number of votes which have been granted by peer nodes of the new member config (if applicable).
-    votes_granted_new: usize,
+    // The number of votes needed from the member config in order to become leader.
+    votes_needed: usize,
+    // The number of votes which have been granted by peer nodes of the member config.
+    votes_granted: usize,
 }
 
 impl<'a, T: ElectionType> Candidate<'a, T> {
@@ -25,10 +21,8 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
         Self {
             core,
             pre_vote,
-            votes_granted_old: 0,
-            votes_needed_new: 0,
-            votes_needed_old: 0,
-            votes_granted_new: 0,
+            votes_granted: 0,
+            votes_needed: 0,
         }
     }
 
@@ -191,34 +185,20 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
     }
 
     fn calculate_needed_votes(&mut self) {
-        let major_old = self.core.members.members.len() / 2 + 1;
-        self.votes_needed_old = match self.core.options.quorum() {
+        let major_old = self.core.members.all_members_num() / 2 + 1;
+        self.votes_needed = match self.core.options.quorum() {
             Quorum::Major => major_old,
-            Quorum::Any(n) => (n as usize).max(major_old).min(self.core.members.members.len()),
+            Quorum::Any(n) => (n as usize).max(major_old).min(self.core.members.all_members_num()),
         };
-        self.votes_granted_old = 1; // vote for ourselves
-
-        if let Some(members) = &self.core.members.members_after_consensus {
-            let major_new = members.len() / 2 + 1;
-            self.votes_needed_new = match self.core.options.quorum() {
-                Quorum::Major => major_new,
-                Quorum::Any(n) => (n as usize).max(major_new).min(members.len()),
-            };
-            self.votes_granted_new = 1; // vote for ourselves
-        } else {
-            self.votes_needed_new = 0;
-            self.votes_granted_new = 0;
-        }
+        self.votes_granted = 1; // vote for ourselves
 
         debug!(
-            "[Node({})][Term({})] quorum is {:?}, votes granted old({}/{}), votes granted new({}/{})",
+            "[Node({})][Term({})] quorum is {:?}, votes granted({}/{})",
             self.core.node_id,
             self.core.hard_state.current_term,
             self.core.options.quorum(),
-            self.votes_granted_old,
-            self.votes_needed_old,
-            self.votes_granted_new,
-            self.votes_needed_new,
+            self.votes_granted,
+            self.votes_needed,
         );
     }
 
@@ -236,9 +216,8 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             }
         };
 
-        let mut members = self.core.members.all_members();
-        members.remove(&self.core.node_id);
-        if members.is_empty() {
+        let peers = self.core.members.peers();
+        if peers.is_empty() {
             return;
         }
 
@@ -247,21 +226,21 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 "[Node({})][Term({})] start to send pre-vote request to all nodes({})",
                 self.core.node_id,
                 current_term,
-                members.len()
+                peers.len()
             );
         } else {
             debug!(
                 "[Node({})][Term({})] start to send vote request to all nodes({})",
                 self.core.node_id,
                 current_term,
-                members.len()
+                peers.len()
             );
         }
 
         self.core.vote_id += 1;
         let vote_id = self.core.vote_id;
 
-        for member in members.into_iter() {
+        for member in peers {
             let req = VoteRequest {
                 target_node_id: member.clone(),
                 candidate_id: self.core.node_id.clone(),
@@ -275,6 +254,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             let rpc = self.core.rpc.clone();
             let tx = self.core.msg_tx.clone();
             let node_id = self.core.node_id.clone();
+            let target_node_id = member.clone();
 
             let _ = self.core.spawn_task("election-vote", move || match rpc.vote(req) {
                 Ok(resp) => {
@@ -283,7 +263,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 Err(e) => {
                     warn!(
                         "[Node({})][Term({})] failed to send vote request to node({}): {}",
-                        node_id, current_term, member, e
+                        node_id, current_term, target_node_id, e
                     );
                 }
             });
@@ -315,31 +295,16 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
         }
 
         if msg.vote_result.is_granted() {
-            if self.core.members.members.contains(&msg.node_id) {
-                self.votes_granted_old += 1;
-            }
-            if self
-                .core
-                .members
-                .members_after_consensus
-                .as_ref()
-                .map(|m| m.contains(&msg.node_id))
-                .unwrap_or(false)
-            {
-                self.votes_granted_new += 1;
+            if self.core.members.peers().contains(&msg.node_id) {
+                self.votes_granted += 1;
             }
 
             debug!(
-                "[Node({})][Term({})] votes granted old({}/{}), votes granted new({}/{})",
-                self.core.node_id,
-                self.core.hard_state.current_term,
-                self.votes_granted_old,
-                self.votes_needed_old,
-                self.votes_granted_new,
-                self.votes_needed_new,
+                "[Node({})][Term({})] votes granted({}/{})",
+                self.core.node_id, self.core.hard_state.current_term, self.votes_granted, self.votes_needed,
             );
 
-            if self.votes_granted_old >= self.votes_needed_old && self.votes_granted_new >= self.votes_needed_new {
+            if self.votes_granted >= self.votes_needed {
                 if self.pre_vote {
                     info!(
                         "[Node({})][Term({})] minimum number of pre-votes have been received, so transit to candidate",

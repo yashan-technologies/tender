@@ -4,6 +4,7 @@ use crate::core::leader::Leader;
 use crate::core::observer::Observer;
 use crate::core::startup::Startup;
 use crate::error::{to_storage_error, Error, Result};
+use crate::member::MemberConfig;
 use crate::metrics::{Metrics, MetricsReporter};
 use crate::msg::Message;
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
@@ -13,7 +14,6 @@ use crate::util::TryToString;
 use crate::wait_group::WaitGroup;
 use crate::{ElectionType, Event, EventHandler, Options, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -34,48 +34,6 @@ pub enum State {
     Candidate = 4,
     Leader = 5,
     Observer = 6,
-}
-
-pub struct MemberConfig<T: ElectionType> {
-    pub(crate) members: HashSet<T::NodeId>,
-    pub(crate) members_after_consensus: Option<HashSet<T::NodeId>>,
-}
-
-impl<T: ElectionType> MemberConfig<T> {
-    #[inline]
-    pub fn all_members(&self) -> HashSet<T::NodeId> {
-        let mut all = self.members.clone();
-        if let Some(members) = &self.members_after_consensus {
-            all.extend(members.iter().cloned());
-        }
-        all
-    }
-
-    #[allow(dead_code)]
-    #[inline]
-    pub fn contains(&self, node_id: &T::NodeId) -> bool {
-        self.members.contains(node_id)
-            || self
-                .members_after_consensus
-                .as_ref()
-                .map_or(false, |m| m.contains(node_id))
-    }
-
-    #[allow(dead_code)]
-    #[inline]
-    pub fn is_in_joint_consensus(&self) -> bool {
-        self.members_after_consensus.is_some()
-    }
-
-    #[inline]
-    pub fn with_node(node_id: T::NodeId) -> Self {
-        let mut members = HashSet::new();
-        members.insert(node_id);
-        Self {
-            members,
-            members_after_consensus: None,
-        }
-    }
 }
 
 pub struct ElectionCore<T: ElectionType> {
@@ -125,7 +83,7 @@ impl<T: ElectionType> ElectionCore<T> {
         ElectionCore {
             options,
             node_id: node_id.clone(),
-            members: MemberConfig::with_node(node_id),
+            members: MemberConfig::new(node_id),
             state: State::Startup,
             prev_state: State::Startup,
             state_id: 0,

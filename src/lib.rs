@@ -11,6 +11,7 @@ mod util;
 mod core;
 mod error;
 mod event;
+mod member;
 mod metrics;
 mod msg;
 mod options;
@@ -32,7 +33,6 @@ use crate::core::ElectionCore;
 use crate::metrics::metrics_channel;
 use crate::msg::Message;
 use crossbeam_channel::Sender;
-use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -167,7 +167,7 @@ impl<T: ElectionType> Election<T> {
 
     /// Initialize this node.
     #[inline]
-    pub fn initialize(&self, members: HashSet<T::NodeId>, initial_mode: InitialMode) -> Result<()> {
+    pub fn initialize(&self, members: Vec<T::NodeId>, initial_mode: InitialMode) -> Result<()> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.msg_tx
             .send(Message::Initialize {

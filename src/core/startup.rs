@@ -1,9 +1,9 @@
-use crate::core::{ElectionCore, MemberConfig, State};
+use crate::core::{ElectionCore, State};
 use crate::error::{to_storage_error, Result};
 use crate::msg::Message;
 use crate::{ElectionType, Event, HardState, InitialMode, Storage};
 use crossbeam_channel::RecvTimeoutError;
-use std::collections::HashSet;
+use fxhash::FxHashSet;
 
 pub struct Startup<'a, T: ElectionType> {
     core: &'a mut ElectionCore<T>,
@@ -19,31 +19,30 @@ impl<'a, T: ElectionType> Startup<'a, T> {
     #[inline]
     fn init_with_members(
         &mut self,
-        mut members: HashSet<T::NodeId>,
+        members: Vec<T::NodeId>,
         initial_mode: InitialMode,
         set_prev_state: Option<&mut bool>,
     ) -> Result<()> {
-        if !members.contains(&self.core.node_id) {
-            members.insert(self.core.node_id.clone());
+        let mut peers = FxHashSet::with_hasher(Default::default());
+        for m in members.into_iter().filter(|m| m != &self.core.node_id) {
+            peers.try_reserve(1)?;
+            peers.insert(m);
         }
+        let member_num = peers.len() + 1;
 
         if initial_mode == InitialMode::AsObserver {
             self.core.set_state(State::Observer, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to observer",
-                self.core.node_id,
-                self.core.hard_state.current_term,
-                members.len()
+                self.core.node_id, self.core.hard_state.current_term, member_num
             );
         } else if initial_mode == InitialMode::AsCandidate {
             self.core.set_state(State::PreCandidate, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to pre-candidate",
-                self.core.node_id,
-                self.core.hard_state.current_term,
-                members.len()
+                self.core.node_id, self.core.hard_state.current_term, member_num
             );
-        } else if initial_mode == InitialMode::AsLeader || members.len() == 1 {
+        } else if initial_mode == InitialMode::AsLeader || peers.is_empty() {
             let hard_state = HardState {
                 current_term: self.core.hard_state.current_term + 1,
                 voted_for: Some(self.core.node_id.clone()),
@@ -71,17 +70,11 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             self.core.set_state(State::Follower, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to follower",
-                self.core.node_id,
-                self.core.hard_state.current_term,
-                members.len()
+                self.core.node_id, self.core.hard_state.current_term, member_num
             );
         }
 
-        self.core.members = MemberConfig {
-            members,
-            members_after_consensus: None,
-        };
-
+        self.core.members.init_peers(peers);
         self.core.report_metrics();
 
         Ok(())

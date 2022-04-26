@@ -2,7 +2,6 @@ use crate::error::{Error, Result};
 use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse};
 use crate::{ElectionType, Event, InitialMode, MoveLeaderRequest, Options};
 use crossbeam_channel::Sender;
-use std::collections::HashSet;
 
 /// Message processed by election main thread.
 pub enum Message<T: ElectionType> {
@@ -17,7 +16,7 @@ pub enum Message<T: ElectionType> {
     },
     VoteResponse(VoteResponse<T>),
     Initialize {
-        members: HashSet<T::NodeId>,
+        members: Vec<T::NodeId>,
         initial_mode: InitialMode,
         tx: Sender<Result<()>>,
     },

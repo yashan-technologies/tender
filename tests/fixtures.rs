@@ -2,7 +2,7 @@
 
 use log::LevelFilter;
 use parking_lot::{Mutex, RwLock};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -207,7 +207,7 @@ impl MemRouter {
         rt.insert(node_id, election);
     }
 
-    pub fn init_node(&self, node_id: NodeId, members: HashSet<NodeId>, initial_mode: InitialMode) {
+    pub fn init_node(&self, node_id: NodeId, members: Vec<NodeId>, initial_mode: InitialMode) {
         assert_eq!(self.group_id, node_id.group_id);
         let rt = self.routing_table.read();
         rt.get(&node_id).unwrap().initialize(members, initial_mode).unwrap();

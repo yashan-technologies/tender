@@ -40,13 +40,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
     fn spawn_parallel_heartbeat(&self) {
         let current_term = self.core.hard_state.current_term;
 
-        for member in self
-            .core
-            .members
-            .all_members()
-            .into_iter()
-            .filter(|member| member != &self.core.node_id)
-        {
+        for member in self.core.members.peers() {
             let req = HeartbeatRequest {
                 target_node_id: member.clone(),
                 leader_id: self.core.node_id.clone(),
@@ -56,6 +50,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
             let rpc = self.core.rpc.clone();
             let tx = self.core.msg_tx.clone();
             let node_id = self.core.node_id.clone();
+            let target_node_id = member.clone();
 
             trace!(
                 "[Node({})][Term({})] send heartbeat to node({})",
@@ -73,7 +68,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     Err(e) => {
                         warn!(
                             "[Node({})][Term({})] failed to send heartbeat request to {}: {}",
-                            node_id, current_term, member, e
+                            node_id, current_term, target_node_id, e
                         );
                     }
                 }

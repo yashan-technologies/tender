@@ -1,7 +1,6 @@
 mod fixtures;
 
 use fixtures::{init_log, MemRouter, MemVoteFactor, NodeId};
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -30,7 +29,7 @@ fn test_single_node() {
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(node, State::Startup, 0, None);
 
-    mem_router.init_node(node, HashSet::new(), InitialMode::Normal);
+    mem_router.init_node(node, Vec::new(), InitialMode::Normal);
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(node, State::Leader, 1, Some(node));
 }
@@ -58,7 +57,7 @@ fn test_single_node_as_observer() {
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(node, State::Startup, 0, None);
 
-    mem_router.init_node(node, HashSet::new(), InitialMode::AsObserver);
+    mem_router.init_node(node, Vec::new(), InitialMode::AsObserver);
     sleep(Duration::from_secs(1));
     mem_router.assert_node_state(node, State::Observer, 0, None);
 }
