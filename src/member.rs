@@ -21,7 +21,6 @@ impl<T: ElectionType> MemberConfig<T> {
         self.peers = peers;
     }
 
-    #[allow(dead_code)]
     #[inline]
     pub fn current(&self) -> &T::NodeId {
         &self.current
