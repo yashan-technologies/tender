@@ -183,7 +183,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                             );
                         } else {
                             self.core.next_election_timeout = None;
-                            debug!(
+                            info!(
                                 "[{}][Term({})] an election timeout is hit, but TransitToFollower is not finished",
                                 self.core.node_id(),
                                 self.core.current_term()

@@ -128,7 +128,7 @@ impl<T: ElectionType> Election<T> {
         rpc: Arc<T::Rpc>,
         event_handler: Arc<dyn EventHandler<T>>,
     ) -> Result<Self> {
-        let (msg_tx, msg_rx) = crossbeam_channel::bounded(64);
+        let (msg_tx, msg_rx) = crossbeam_channel::bounded(1024);
         let (metrics_reporter, metrics_watcher) = metrics_channel();
         let election_core = ElectionCore::new(
             options,
