@@ -24,7 +24,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
         set_prev_state: Option<&mut bool>,
     ) -> Result<()> {
         let mut peers = FxHashSet::with_hasher(Default::default());
-        for m in members.into_iter().filter(|m| m != &self.core.node_id) {
+        for m in members.into_iter().filter(|m| m != self.core.node_id()) {
             peers.try_reserve(1)?;
             peers.insert(m);
         }
@@ -34,18 +34,22 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             self.core.set_state(State::Observer, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to observer",
-                self.core.node_id, self.core.hard_state.current_term, member_num
+                self.core.node_id(),
+                self.core.hard_state.current_term,
+                member_num
             );
         } else if initial_mode == InitialMode::AsCandidate {
             self.core.set_state(State::PreCandidate, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to pre-candidate",
-                self.core.node_id, self.core.hard_state.current_term, member_num
+                self.core.node_id(),
+                self.core.hard_state.current_term,
+                member_num
             );
         } else if initial_mode == InitialMode::AsLeader || peers.is_empty() {
             let hard_state = HardState {
                 current_term: self.core.hard_state.current_term + 1,
-                voted_for: Some(self.core.node_id.clone()),
+                voted_for: Some(self.core.node_id().clone()),
             };
             self.core
                 .storage
@@ -56,12 +60,13 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             if initial_mode == InitialMode::AsLeader {
                 info!(
                     "[Node({})][Term({})] this node is forced to be leader",
-                    self.core.node_id, self.core.hard_state.current_term
+                    self.core.node_id(),
+                    self.core.hard_state.current_term
                 );
             } else {
                 info!(
                     "[Node({})][Term({})] this node is initialized without other members, so directly transit to leader",
-                    self.core.node_id, self.core.hard_state.current_term
+                    self.core.node_id(), self.core.hard_state.current_term
                 );
             }
         } else {
@@ -70,7 +75,9 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             self.core.set_state(State::Follower, set_prev_state);
             info!(
                 "[Node({})][Term({})] this node is initialized with {} members, and transit to follower",
-                self.core.node_id, self.core.hard_state.current_term, member_num
+                self.core.node_id(),
+                self.core.hard_state.current_term,
+                member_num
             );
         }
 
@@ -94,7 +101,9 @@ impl<'a, T: ElectionType> Startup<'a, T> {
             Err(e) => {
                 error!(
                     "[Node({})][Term({})] this node is shutting down caused by fatal storage error: {}",
-                    self.core.node_id, self.core.hard_state.current_term, e
+                    self.core.node_id(),
+                    self.core.hard_state.current_term,
+                    e
                 );
                 self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                 return;
@@ -105,7 +114,8 @@ impl<'a, T: ElectionType> Startup<'a, T> {
 
         info!(
             "[Node({})][Term({})] start the startup loop",
-            self.core.node_id, self.core.hard_state.current_term
+            self.core.node_id(),
+            self.core.hard_state.current_term
         );
 
         loop {
@@ -128,7 +138,9 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         Message::UpdateOptions { options, tx } => {
                             info!(
                                 "[Node({})][Term({})] election update options: {:?}",
-                                self.core.node_id, self.core.hard_state.current_term, options
+                                self.core.node_id(),
+                                self.core.hard_state.current_term,
+                                options
                             );
                             self.core.update_options(options);
                             let _ = tx.send(Ok(()));
@@ -136,7 +148,8 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         Message::Shutdown => {
                             info!(
                                 "[Node({})][Term({})] election received shutdown message",
-                                self.core.node_id, self.core.hard_state.current_term
+                                self.core.node_id(),
+                                self.core.hard_state.current_term
                             );
                             self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                         }
@@ -144,7 +157,11 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                             if let Some(e) = error {
                                 error!(
                                     "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
-                                    self.core.node_id, self.core.hard_state.current_term, event, term, e
+                                    self.core.node_id(),
+                                    self.core.hard_state.current_term,
+                                    event,
+                                    term,
+                                    e
                                 );
                             }
                         }
@@ -178,7 +195,8 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                     RecvTimeoutError::Disconnected => {
                         info!(
                             "[Node({})][Term({})] the election message channel is disconnected",
-                            self.core.node_id, self.core.hard_state.current_term
+                            self.core.node_id(),
+                            self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }

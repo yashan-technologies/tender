@@ -30,7 +30,8 @@ impl<'a, T: ElectionType> Observer<'a, T> {
 
         info!(
             "[Node({})][Term({})] start the observer loop",
-            self.core.node_id, self.core.hard_state.current_term
+            self.core.node_id(),
+            self.core.hard_state.current_term
         );
 
         loop {
@@ -45,7 +46,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                     Message::HeartbeatRequest { req, tx } => {
                         trace!(
                             "[Node({})][Term({})] receive heartbeat: {:?}",
-                            self.core.node_id,
+                            self.core.node_id(),
                             self.core.hard_state.current_term,
                             req
                         );
@@ -54,7 +55,9 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         if let Err(ref e) = result {
                             debug!(
                                 "[Node({})][Term({})] failed to handle heartbeat request: {}",
-                                self.core.node_id, self.core.hard_state.current_term, e
+                                self.core.node_id(),
+                                self.core.hard_state.current_term,
+                                e
                             );
                         }
                         let _ = tx.send(result);
@@ -67,7 +70,9 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         if let Err(ref e) = result {
                             debug!(
                                 "[Node({})][Term({})] failed to handle vote request: {}",
-                                self.core.node_id, self.core.hard_state.current_term, e
+                                self.core.node_id(),
+                                self.core.hard_state.current_term,
+                                e
                             );
                         }
                         let _ = tx.send(result);
@@ -81,7 +86,9 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                     Message::UpdateOptions { options, tx } => {
                         info!(
                             "[Node({})][Term({})] election update options: {:?}",
-                            self.core.node_id, self.core.hard_state.current_term, options
+                            self.core.node_id(),
+                            self.core.hard_state.current_term,
+                            options
                         );
                         self.core.update_options(options);
                         let _ = tx.send(Ok(()));
@@ -89,7 +96,8 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                     Message::Shutdown => {
                         info!(
                             "[Node({})][Term({})] election received shutdown message",
-                            self.core.node_id, self.core.hard_state.current_term
+                            self.core.node_id(),
+                            self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
@@ -102,12 +110,19 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                         if let Some(e) = error {
                             error!(
                                 "[Node({})][Term({})] failed to handle event ({:?}) in term {}: {} ",
-                                self.core.node_id, self.core.hard_state.current_term, event, term, e
+                                self.core.node_id(),
+                                self.core.hard_state.current_term,
+                                event,
+                                term,
+                                e
                             );
                         } else {
                             debug!(
                                 "[Node({})][Term({})] event ({:?}) in term {} is handled",
-                                self.core.node_id, self.core.hard_state.current_term, event, term,
+                                self.core.node_id(),
+                                self.core.hard_state.current_term,
+                                event,
+                                term,
                             );
                         }
                     }
@@ -125,7 +140,8 @@ impl<'a, T: ElectionType> Observer<'a, T> {
                     RecvTimeoutError::Disconnected => {
                         info!(
                             "[Node({})][Term({})] the election message channel is disconnected",
-                            self.core.node_id, self.core.hard_state.current_term
+                            self.core.node_id(),
+                            self.core.hard_state.current_term
                         );
                         self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     }
