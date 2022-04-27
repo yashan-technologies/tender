@@ -8,7 +8,7 @@ A Raft-based election framework.
 
 ## Rust Version
 
-This version of `tender` requires Rust 1.56 or later.
+This version of `tender` requires Rust 1.57 or later.
 
 ## License
 
