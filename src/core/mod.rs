@@ -15,7 +15,7 @@ use crate::wait_group::WaitGroup;
 use crate::{ElectionType, Event, EventHandler, Options, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 mod candidate;
 mod follower;
@@ -53,7 +53,7 @@ pub struct ElectionCore<T: ElectionType> {
     in_moving_leader: bool,
 
     /// The last time a heartbeat was received.
-    last_heartbeat: Option<Instant>,
+    last_heartbeat_time: Option<(Instant, SystemTime)>,
     /// The duration until the next election timeout.
     next_election_timeout: Option<Instant>,
 
@@ -94,7 +94,7 @@ impl<T: ElectionType> ElectionCore<T> {
             task_spawner,
             storage,
             rpc,
-            last_heartbeat: None,
+            last_heartbeat_time: None,
             next_election_timeout: None,
             msg_tx,
             msg_rx,
@@ -214,7 +214,7 @@ impl<T: ElectionType> ElectionCore<T> {
         let now = Instant::now();
         self.next_election_timeout = Some(now + Duration::from_millis(self.options.random_election_timeout()));
         if heartbeat {
-            self.last_heartbeat = Some(now);
+            self.last_heartbeat_time = Some((now, SystemTime::now()));
         }
     }
 
@@ -381,7 +381,7 @@ impl<T: ElectionType> ElectionCore<T> {
         // Ignore heartbeat time when moving leader
         if !msg.move_leader {
             // Do not respond to the request if we've received a heartbeat within the election timeout minimum.
-            if let Some(instant) = self.last_heartbeat {
+            if let Some((instant, _)) = self.last_heartbeat_time {
                 let now = Instant::now();
                 let delta = now.duration_since(instant);
                 if (delta.as_millis() as u64) <= self.options.election_timeout_min() {
@@ -541,6 +541,7 @@ impl<T: ElectionType> ElectionCore<T> {
             state: self.state(),
             current_term: self.current_term(),
             current_leader: self.current_leader.clone(),
+            last_heartbeat_time: self.last_heartbeat_time.as_ref().map(|t| t.1),
         })
     }
 }

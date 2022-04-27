@@ -152,7 +152,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         }
 
         // Setup state as leader
-        self.core.last_heartbeat = None;
+        self.core.last_heartbeat_time = None;
         self.core.next_election_timeout = None;
         self.next_heartbeat_timeout = None;
         self.core.current_leader = Some(self.core.node_id().clone());

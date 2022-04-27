@@ -1,4 +1,5 @@
 use crate::{ElectionType, State};
+use std::time::SystemTime;
 use watch::{WatchReceiver, WatchSender};
 
 /// A set of metrics describing the current state of election.
@@ -10,6 +11,8 @@ pub struct Metrics<T: ElectionType> {
     pub current_term: u64,
     /// Current leader of the group.
     pub current_leader: Option<T::NodeId>,
+    /// The last time a heartbeat was received.
+    pub last_heartbeat_time: Option<SystemTime>,
 }
 
 impl<T: ElectionType> Metrics<T> {
@@ -19,6 +22,7 @@ impl<T: ElectionType> Metrics<T> {
             state: State::Startup,
             current_term: 0,
             current_leader: None,
+            last_heartbeat_time: None,
         }
     }
 }
