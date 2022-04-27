@@ -11,11 +11,11 @@ use crate::rpc::{HeartbeatRequest, HeartbeatResponse, VoteRequest, VoteResponse}
 use crate::storage::{HardState, Storage};
 use crate::task::TaskSpawner;
 use crate::util::TryToString;
-use crate::wait_group::WaitGroup;
 use crate::{ElectionType, Event, EventHandler, Options, Thread, VoteFactor, VoteResult};
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
+use sync_wait_group::WaitGroup;
 
 mod candidate;
 mod follower;

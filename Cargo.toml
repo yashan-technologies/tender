@@ -17,8 +17,9 @@ log = "0.4.16"
 fastrand = "1.7.0"
 crossbeam-channel = "0.5.4"
 watch = { version = "0.2.1", features = ["parking_lot"] }
-parking_lot = "0.12.0"
+sync-wait-group = "0.1.0"
 fxhash = "0.2.1"
 
 [dev-dependencies]
 env_logger = "0.9.0"
+parking_lot = "0.12.0"
