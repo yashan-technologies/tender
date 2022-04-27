@@ -215,6 +215,7 @@ impl<T: ElectionType> ElectionCore<T> {
         self.next_election_timeout = Some(now + Duration::from_millis(self.options.random_election_timeout()));
         if heartbeat {
             self.last_heartbeat_time = Some((now, SystemTime::now()));
+            self.report_metrics();
         }
     }
 
