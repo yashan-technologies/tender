@@ -13,9 +13,9 @@ homepage = "https://github.com/cod-technologies/tender"
 documentation = "https://docs.rs/tender/"
 
 [dependencies]
-log = "0.4.14"
+log = "0.4.16"
 fastrand = "1.7.0"
-crossbeam-channel = "0.5.2"
+crossbeam-channel = "0.5.4"
 watch = { version = "0.2.1", features = ["parking_lot"] }
 parking_lot = "0.12.0"
 fxhash = "0.2.1"
