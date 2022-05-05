@@ -87,15 +87,16 @@ pub trait ElectionType: 'static + Sized + Clone + Debug {
 
 /// Initial mode when initialize election.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[repr(u8)]
 pub enum InitialMode {
     /// Normal election process.
-    Normal,
+    Normal = 0,
     /// Force the node to be leader.
-    AsLeader,
+    AsLeader = 1,
     /// Force the node to be observer.
-    AsObserver,
+    AsObserver = 2,
     /// Force the node to be candidate(pre-candidate at first).
-    AsCandidate,
+    AsCandidate = 3,
 }
 
 /// The election API.
