@@ -41,6 +41,14 @@ impl<T: ElectionType> MetricsReporter<T> {
     pub(crate) fn report(&mut self, metrics: Metrics<T>) {
         self.metrics_tx.send(metrics);
     }
+
+    #[inline]
+    pub(crate) fn update<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut Metrics<T>),
+    {
+        self.metrics_tx.update(f)
+    }
 }
 
 /// The metrics watcher of the node.

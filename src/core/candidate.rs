@@ -73,17 +73,21 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                 self.core.current_leader = None;
                 self.core.hard_state.current_term += 1;
                 self.core.hard_state.voted_for = Some(self.core.node_id().clone());
+                let current_term = self.core.current_term();
                 if let Err(e) = self.core.storage.save_hard_state(&self.core.hard_state) {
                     error!(
                         "[{}][Term({})] election is shutting down caused by fatal storage error: {}",
                         self.core.node_id(),
-                        self.core.current_term(),
+                        current_term,
                         e
                     );
                     self.core.set_state(State::Shutdown, set_prev_state.as_mut());
                     return;
                 }
-                self.core.report_metrics();
+                self.core.update_metrics(|metrics| {
+                    metrics.current_leader = None;
+                    metrics.current_term = current_term;
+                });
             }
 
             self.spawn_parallel_vote_request();
@@ -313,7 +317,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
             self.core.update_current_term(msg.term, None)?;
             self.core.current_leader = None;
             self.core.set_state(State::Follower, set_prev_state);
-            self.core.report_metrics();
+            // The metrics will be updated in Follower state.
             info!(
                 "[{}][Term({})] revert to follower due to greater term({}) observed in vote response then current term({})",
                 self.core.node_id(), self.core.current_term(), msg.term, self.core.current_term()
@@ -351,7 +355,7 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                     self.core.set_state(State::Leader, set_prev_state);
                 }
                 self.core.in_moving_leader = false;
-                self.core.report_metrics();
+                // The metrics will be updated in Candidate or Leader state.
                 return Ok(());
             }
         }

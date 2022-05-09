@@ -83,7 +83,7 @@ impl<'a, T: ElectionType> Startup<'a, T> {
         }
 
         self.core.members.init_peers(peers);
-        self.core.report_metrics();
+        // The metrics will be updated in next state.
 
         Ok(())
     }

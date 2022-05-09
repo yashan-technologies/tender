@@ -28,7 +28,9 @@ impl<'a, T: ElectionType> Follower<'a, T> {
 
         if msg.term > self.core.current_term() {
             self.core.update_current_term(msg.term, None)?;
-            self.core.report_metrics();
+            self.core.update_metrics(|metrics| {
+                metrics.current_term = msg.term;
+            });
         }
 
         if self.transit_event_finished {

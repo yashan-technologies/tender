@@ -214,8 +214,11 @@ impl<T: ElectionType> ElectionCore<T> {
         let now = Instant::now();
         self.next_election_timeout = Some(now + Duration::from_millis(self.options.random_election_timeout()));
         if heartbeat {
-            self.last_heartbeat_time = Some((now, SystemTime::now()));
-            self.report_metrics();
+            let system_now = SystemTime::now();
+            self.last_heartbeat_time = Some((now, system_now));
+            self.update_metrics(|metrics| {
+                metrics.last_heartbeat_time = Some(system_now);
+            });
         }
     }
 
@@ -292,12 +295,13 @@ impl<T: ElectionType> ElectionCore<T> {
         }
 
         self.update_next_election_timeout(true);
-        let mut report_metrics = false;
 
         // update current term if needed
         if self.current_term() != msg.term {
             self.update_current_term(msg.term, None)?;
-            report_metrics = true;
+            self.update_metrics(|metrics| {
+                metrics.current_term = msg.term;
+            });
         }
 
         // update current leader if needed
@@ -322,8 +326,10 @@ impl<T: ElectionType> ElectionCore<T> {
                 }
             }
             self.current_leader = Some(msg.leader_id.clone());
-            let _result = self.spawn_event_handling_task(Event::ChangeLeader(msg.leader_id));
-            report_metrics = true;
+            let _result = self.spawn_event_handling_task(Event::ChangeLeader(msg.leader_id.clone()));
+            self.update_metrics(|metrics| {
+                metrics.current_leader = Some(msg.leader_id);
+            });
         }
 
         // transition to follower state if needed
@@ -335,11 +341,7 @@ impl<T: ElectionType> ElectionCore<T> {
                 self.state()
             );
             self.set_state(State::Follower, set_prev_state);
-            report_metrics = true;
-        }
-
-        if report_metrics {
-            self.report_metrics();
+            // The metrics::state will be updated in Follower.
         }
 
         Ok(HeartbeatResponse {
@@ -412,6 +414,7 @@ impl<T: ElectionType> ElectionCore<T> {
                     msg.term,
                     self.current_term()
                 );
+                // The metrics will be updated in Follower state.
             } else {
                 info!(
                     "[{}][Term({})] vote request term({}) is greater than current term({})",
@@ -420,8 +423,10 @@ impl<T: ElectionType> ElectionCore<T> {
                     msg.term,
                     self.current_term()
                 );
+                self.update_metrics(|metrics| {
+                    metrics.current_term = msg.term;
+                });
             }
-            self.report_metrics();
         }
 
         // Check if candidate's vote factor can be granted.
@@ -463,6 +468,7 @@ impl<T: ElectionType> ElectionCore<T> {
                         self.current_term(),
                         msg.candidate_id
                     );
+                    // The metrics will be updated in Follower state.
                 } else {
                     debug!(
                         "[{}][Term({})] granted vote for candidate({})",
@@ -473,7 +479,6 @@ impl<T: ElectionType> ElectionCore<T> {
                 }
                 self.hard_state.voted_for = Some(msg.candidate_id.clone());
                 self.save_hard_state()?;
-                self.report_metrics();
                 Ok(self.create_vote_response(msg, vote_result))
             }
             Some(candidate_id) => {
@@ -544,5 +549,13 @@ impl<T: ElectionType> ElectionCore<T> {
             current_leader: self.current_leader.clone(),
             last_heartbeat_time: self.last_heartbeat_time.as_ref().map(|t| t.1),
         })
+    }
+
+    #[inline]
+    fn update_metrics<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut Metrics<T>),
+    {
+        self.metrics_reporter.update(f)
     }
 }

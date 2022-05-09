@@ -16,7 +16,7 @@ documentation = "https://docs.rs/tender/"
 log = "0.4.16"
 fastrand = "1.7.0"
 crossbeam-channel = "0.5.4"
-watch = { version = "0.2.1", features = ["parking_lot"] }
+watch = { version = "0.2.2", features = ["parking_lot"] }
 sync-wait-group = "0.1.0"
 fxhash = "0.2.1"
 
