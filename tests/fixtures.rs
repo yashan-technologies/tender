@@ -256,6 +256,18 @@ impl MemRouter {
         rt.get(&from).unwrap().move_leader(to).unwrap();
     }
 
+    pub fn step_up_to_leader(&self, node: NodeId, increase_term: bool) {
+        assert_eq!(self.group_id, node.group_id);
+        let rt = self.routing_table.read();
+        rt.get(&node).unwrap().step_up_to_leader(increase_term).unwrap();
+    }
+
+    pub fn step_down_to_follower(&self, node: NodeId) {
+        assert_eq!(self.group_id, node.group_id);
+        let rt = self.routing_table.read();
+        rt.get(&node).unwrap().step_down_to_follower().unwrap();
+    }
+
     pub fn assert_node_state(&self, node_id: NodeId, state: State, current_term: u64, current_leader: Option<NodeId>) {
         assert_eq!(self.group_id, node_id.group_id);
 

@@ -50,6 +50,23 @@ impl<'a, T: ElectionType> Follower<'a, T> {
         }
     }
 
+    fn step_up_to_leader(&mut self, increase_term: bool, set_prev_state: Option<&mut bool>) -> Result<()> {
+        if self.transit_event_finished {
+            if increase_term {
+                let term = self.core.current_term();
+                self.core.update_current_term(term + 1, None)?;
+            }
+
+            self.core.set_state(State::Leader, set_prev_state);
+            // The metrics will be updated in Leader state.
+            Ok(())
+        } else {
+            Err(Error::NotAllowed(
+                "can't step up to leader because TransitToFollower is not finished".try_to_string()?,
+            ))
+        }
+    }
+
     pub fn run(mut self) {
         self.core.increase_state_id();
 
@@ -171,6 +188,18 @@ impl<'a, T: ElectionType> Follower<'a, T> {
                     Message::MoveLeaderRequest { req, tx } => {
                         let result = self.handle_move_leader_request(req, set_prev_state.as_mut());
                         let _ = tx.send(result);
+                    }
+                    Message::StepUpToLeader { increase_term, tx } => {
+                        debug!(
+                            "[{}][Term({})] step up to leader",
+                            self.core.node_id(),
+                            self.core.current_term(),
+                        );
+                        let _ = tx.send(self.step_up_to_leader(increase_term, set_prev_state.as_mut()));
+                    }
+                    Message::StepDownToFollower { tx } => {
+                        // Current state is follower, nothing to do.
+                        let _ = tx.send(Ok(()));
                     }
                 },
                 Err(e) => match e {

@@ -39,4 +39,11 @@ pub enum Message<T: ElectionType> {
         req: MoveLeaderRequest<T>,
         tx: Sender<Result<()>>,
     },
+    StepUpToLeader {
+        increase_term: bool,
+        tx: Sender<Result<()>>,
+    },
+    StepDownToFollower {
+        tx: Sender<Result<()>>,
+    },
 }

@@ -213,7 +213,7 @@ fn test_move_leader() {
 
     {
         log::info!("--- move leader to node {}", node2);
-        let _ = mem_router.move_leader(node1, node2);
+        mem_router.move_leader(node1, node2);
     }
     sleep(Duration::from_secs(3));
     mem_router.assert_node_state(node1, State::Follower, 2, Some(node2));
@@ -222,10 +222,66 @@ fn test_move_leader() {
 
     {
         log::info!("--- move leader to node {}", node3);
-        let _ = mem_router.move_leader(node2, node3);
+        mem_router.move_leader(node2, node3);
     }
     sleep(Duration::from_secs(3));
     mem_router.assert_node_state(node1, State::Follower, 3, Some(node3));
     mem_router.assert_node_state(node2, State::Follower, 3, Some(node3));
     mem_router.assert_node_state(node3, State::Leader, 3, Some(node3));
+}
+
+/// Step up & down test.
+#[test]
+fn test_step_up_and_down() {
+    init_log();
+
+    let group_id = 1000;
+    let node1 = NodeId::new(group_id, 1001);
+    let node2 = NodeId::new(group_id, 1002);
+    let node3 = NodeId::new(group_id, 1003);
+
+    let mem_router = Arc::new(MemRouter::new(group_id));
+    mem_router.new_node(node1, MemVoteFactor::new(0));
+    mem_router.new_node(node2, MemVoteFactor::new(0));
+    mem_router.new_node(node3, MemVoteFactor::new(0));
+
+    sleep(Duration::from_secs(1));
+    mem_router.assert_node_state(node1, State::Startup, 0, None);
+    mem_router.assert_node_state(node2, State::Startup, 0, None);
+    mem_router.assert_node_state(node3, State::Startup, 0, None);
+
+    let members = vec![node1, node2, node3];
+
+    mem_router.init_node(node1, members.clone(), InitialMode::AsLeader);
+    mem_router.init_node(node2, members.clone(), InitialMode::Normal);
+    mem_router.init_node(node3, members, InitialMode::Normal);
+
+    sleep(Duration::from_secs(3));
+    mem_router.assert_node_state(node1, State::Leader, 1, Some(node1));
+    mem_router.assert_node_state(node2, State::Follower, 1, Some(node1));
+    mem_router.assert_node_state(node3, State::Follower, 1, Some(node1));
+
+    {
+        log::info!("--- node {} step down to follower", node1);
+        mem_router.step_down_to_follower(node1);
+
+        log::info!("--- node {} step up to leader", node2);
+        mem_router.step_up_to_leader(node2, false);
+    }
+    sleep(Duration::from_secs(3));
+    mem_router.assert_node_state(node1, State::Follower, 1, Some(node2));
+    mem_router.assert_node_state(node2, State::Leader, 1, Some(node2));
+    mem_router.assert_node_state(node3, State::Follower, 1, Some(node2));
+
+    {
+        log::info!("--- node {} step down to follower", node2);
+        mem_router.step_down_to_follower(node2);
+
+        log::info!("--- node {} step up to leader", node3);
+        mem_router.step_up_to_leader(node3, true);
+    }
+    sleep(Duration::from_secs(3));
+    mem_router.assert_node_state(node1, State::Follower, 2, Some(node3));
+    mem_router.assert_node_state(node2, State::Follower, 2, Some(node3));
+    mem_router.assert_node_state(node3, State::Leader, 2, Some(node3));
 }

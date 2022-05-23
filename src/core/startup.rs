@@ -172,6 +172,12 @@ impl<'a, T: ElectionType> Startup<'a, T> {
                         Message::MoveLeaderRequest { tx, .. } => {
                             self.core.reject_move_leader(tx);
                         }
+                        Message::StepUpToLeader { tx, .. } => {
+                            self.core.reject_step_up_to_leader(tx);
+                        }
+                        Message::StepDownToFollower { tx } => {
+                            self.core.reject_step_down_to_follower(tx);
+                        }
                         Message::HeartbeatRequest { .. } => {
                             // ignore heart message in startup state
                             // tx is dropped here, so user will receive a error

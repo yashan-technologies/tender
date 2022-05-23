@@ -542,6 +542,24 @@ impl<T: ElectionType> ElectionCore<T> {
     }
 
     #[inline]
+    fn reject_step_up_to_leader(&self, tx: Sender<Result<()>>) {
+        let _ = tx.send(Err(try_format_error!(
+            NotAllowed,
+            "can't step up to leader in {:?} state",
+            self.state(),
+        )));
+    }
+
+    #[inline]
+    fn reject_step_down_to_follower(&self, tx: Sender<Result<()>>) {
+        let _ = tx.send(Err(try_format_error!(
+            NotAllowed,
+            "can't step down to follower in {:?} state",
+            self.state(),
+        )));
+    }
+
+    #[inline]
     fn report_metrics(&mut self) {
         self.metrics_reporter.report(Metrics {
             state: self.state(),

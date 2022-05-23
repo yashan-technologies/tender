@@ -264,6 +264,19 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                     Message::MoveLeaderRequest { tx, .. } => {
                         self.core.reject_move_leader(tx);
                     }
+                    Message::StepUpToLeader { tx, .. } => {
+                        // Current state is leader, nothing to do.
+                        let _ = tx.send(Ok(()));
+                    }
+                    Message::StepDownToFollower { tx } => {
+                        debug!(
+                            "[{}][Term({})] step down to follower",
+                            self.core.node_id(),
+                            self.core.current_term(),
+                        );
+                        self.core.set_state(State::Follower, set_prev_state.as_mut());
+                        let _ = tx.send(Ok(()));
+                    }
                 },
                 Err(e) => match e {
                     RecvTimeoutError::Timeout => {

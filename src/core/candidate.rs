@@ -190,6 +190,12 @@ impl<'a, T: ElectionType> Candidate<'a, T> {
                         Message::MoveLeaderRequest { tx, .. } => {
                             self.core.reject_move_leader(tx);
                         }
+                        Message::StepUpToLeader { tx, .. } => {
+                            self.core.reject_step_up_to_leader(tx);
+                        }
+                        Message::StepDownToFollower { tx } => {
+                            self.core.reject_step_down_to_follower(tx);
+                        }
                     },
                     Err(e) => match e {
                         RecvTimeoutError::Timeout => {

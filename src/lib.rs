@@ -262,4 +262,46 @@ impl<T: ElectionType> Election<T> {
             .and_then(|res| res)?;
         Ok(())
     }
+
+    /// Steps up this node to leader.
+    #[inline]
+    pub fn step_up_to_leader(&self, increase_term: bool) -> Result<()> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.msg_tx
+            .send(Message::StepUpToLeader { increase_term, tx })
+            .map_err(|e| try_format_error!(ChannelError, "failed to send StepUpToLeader to message channel: {}", e))?;
+        rx.recv()
+            .map_err(|e| {
+                try_format_error!(
+                    ChannelError,
+                    "failed to receive StepUpToLeader result from channel: {}",
+                    e
+                )
+            })
+            .and_then(|res| res)?;
+        Ok(())
+    }
+
+    /// Steps down this node to follower.
+    #[inline]
+    pub fn step_down_to_follower(&self) -> Result<()> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.msg_tx.send(Message::StepDownToFollower { tx }).map_err(|e| {
+            try_format_error!(
+                ChannelError,
+                "failed to send StepDownToFollower to message channel: {}",
+                e
+            )
+        })?;
+        rx.recv()
+            .map_err(|e| {
+                try_format_error!(
+                    ChannelError,
+                    "failed to receive StepDownToFollower result from channel: {}",
+                    e
+                )
+            })
+            .and_then(|res| res)?;
+        Ok(())
+    }
 }
