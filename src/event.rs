@@ -5,9 +5,19 @@ use crate::{ElectionType, State};
 #[derive(Clone, Debug)]
 pub enum Event<T: ElectionType> {
     Startup,
-    TransitToLeader { term: u64 },
-    TransitToFollower { term: u64, prev_state: State },
-    TransitToObserver { term: u64, prev_state: State },
+    TransitToLeader {
+        term: u64,
+        caused_by_step_up: bool,
+    },
+    TransitToFollower {
+        term: u64,
+        prev_state: State,
+        caused_by_step_down: bool,
+    },
+    TransitToObserver {
+        term: u64,
+        prev_state: State,
+    },
     TransitToPreCandidate,
     TransitToCandidate,
     ChangeLeader(T::NodeId),

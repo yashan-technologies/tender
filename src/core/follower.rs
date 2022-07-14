@@ -58,6 +58,7 @@ impl<'a, T: ElectionType> Follower<'a, T> {
             }
 
             self.core.set_state(State::Leader, set_prev_state);
+            self.core.step_up_or_down = true;
             // The metrics will be updated in Leader state.
             Ok(())
         } else {
@@ -79,7 +80,9 @@ impl<'a, T: ElectionType> Follower<'a, T> {
         let _result = self.core.spawn_event_handling_task(Event::TransitToFollower {
             term: self.core.current_term(),
             prev_state: self.core.prev_state(),
+            caused_by_step_down: self.core.step_up_or_down,
         });
+        self.core.step_up_or_down = false;
         self.core.report_metrics();
 
         info!(

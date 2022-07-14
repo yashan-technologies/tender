@@ -51,6 +51,7 @@ pub struct ElectionCore<T: ElectionType> {
     current_leader: Option<T::NodeId>,
     vote_id: u64,
     in_moving_leader: bool,
+    step_up_or_down: bool,
 
     /// The last time a heartbeat was received.
     last_heartbeat_time: Option<(Instant, SystemTime)>,
@@ -102,6 +103,7 @@ impl<T: ElectionType> ElectionCore<T> {
             metrics_reporter,
             task_wait_group: WaitGroup::new(),
             in_moving_leader: false,
+            step_up_or_down: false,
         }
     }
 

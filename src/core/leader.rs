@@ -139,7 +139,9 @@ impl<'a, T: ElectionType> Leader<'a, T> {
         assert!(self.core.is_state(State::Leader));
         let result = self.core.spawn_event_handling_task(Event::TransitToLeader {
             term: self.core.current_term(),
+            caused_by_step_up: self.core.step_up_or_down,
         });
+        self.core.step_up_or_down = false;
         if result.is_err() {
             error!(
                 "[{}][Term({})] failed to handle TransitToLeader event, so transit to follower",
@@ -275,6 +277,7 @@ impl<'a, T: ElectionType> Leader<'a, T> {
                             self.core.current_term(),
                         );
                         self.core.set_state(State::Follower, set_prev_state.as_mut());
+                        self.core.step_up_or_down = true;
                         let _ = tx.send(Ok(()));
                     }
                 },

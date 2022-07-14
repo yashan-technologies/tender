@@ -16,6 +16,7 @@ impl<'a, T: ElectionType> Observer<'a, T> {
 
     pub fn run(mut self) {
         self.core.increase_state_id();
+        self.core.step_up_or_down = false;
 
         // Use set_prev_state to ensure prev_state can be set at most once.
         let mut set_prev_state = Some(true);
