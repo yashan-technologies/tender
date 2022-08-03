@@ -3,6 +3,8 @@
 [![License: Apache](https://img.shields.io/badge/License-Apache%202.0-red.svg)](LICENSE-APACHE)
 OR
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
+[![Crate](https://img.shields.io/crates/v/tender.svg)](https://crates.io/crates/tender)
+[![API](https://docs.rs/tender/badge.svg)](https://docs.rs/tender)
 
 A Raft-based election framework.
 
