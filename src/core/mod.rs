@@ -24,7 +24,7 @@ mod observer;
 mod startup;
 
 /// The state of the node.
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 #[repr(u8)]
 pub enum State {
     Shutdown = 0,
@@ -227,11 +227,11 @@ impl<T: ElectionType> ElectionCore<T> {
     #[inline]
     fn check_node(&self, node_id: &T::NodeId) -> Result<()> {
         if self.node_id().ne(node_id) {
-            return Err(Error::InvalidTarget(try_format!(
+            Err(Error::InvalidTarget(try_format!(
                 "given node id({}) is not the same as this node({})",
                 node_id,
                 self.node_id()
-            )?));
+            )?))
         } else {
             Ok(())
         }

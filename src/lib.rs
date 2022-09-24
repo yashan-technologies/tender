@@ -46,7 +46,7 @@ pub trait NodeId {
 }
 
 /// Vote result.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum VoteResult {
     /// Dissenting vote.
@@ -86,7 +86,7 @@ pub trait ElectionType: 'static + Sized + Clone + Debug {
 }
 
 /// Initial mode when initialize election.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum InitialMode {
     /// Normal election process.
