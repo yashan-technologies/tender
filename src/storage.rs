@@ -27,4 +27,5 @@ pub trait Storage<T: ElectionType> {
     fn load_hard_state(&self) -> Result<HardState<T>, Self::Err>;
     fn save_hard_state(&self, hard_state: &HardState<T>) -> Result<(), Self::Err>;
     fn load_vote_factor(&self) -> Result<T::VoteFactor, Self::Err>;
+    fn prepare_step_down(&self) {}
 }

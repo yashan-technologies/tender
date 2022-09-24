@@ -406,6 +406,10 @@ impl<T: ElectionType> ElectionCore<T> {
         if msg.term > self.current_term() {
             self.update_current_term(msg.term, None)?;
             if !self.is_state(State::Follower) && !self.is_state(State::Observer) {
+                if self.is_state(State::Leader) {
+                    log::info!("[{}] [Term({})] prepare step down", self.node_id(), self.current_term());
+                    self.storage.prepare_step_down();
+                }
                 #[allow(clippy::needless_option_as_deref)]
                 self.set_state(State::Follower, set_prev_state.as_deref_mut());
                 self.update_next_election_timeout(false);
